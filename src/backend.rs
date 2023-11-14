@@ -28,10 +28,11 @@ impl Backend {
     pub async fn run(self) -> Result<(), Box<dyn Error>> {
         let socket = UdpSocket::bind(self.laddr)?;
         let udp = socket.try_clone()?;
+        
         tokio::spawn(async move {
             _ = self.keepalive(socket).await;
         });
-        let p = IOBuilder::default().with_tx_socket(udp)?.build()?;
+        let p = IOBuilder::default().with_rx_socket(udp)?.build()?;
         let mut server = Server::builder()
             .with_tls((Path::new("quic.crt"), Path::new("quic.key")))?
             .with_io(p)?

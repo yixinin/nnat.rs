@@ -69,6 +69,7 @@ impl StunServer {
                         if let Some(bs) = self.backends.get_mut(fqdn.clone().as_str()) {
                             let key = raddr.to_string();
                             bs.insert(key, now);
+                            println!("recv from backend: {}, fqdn: {}", raddr.to_string(), fqdn);
                         }
                     }
                 }
