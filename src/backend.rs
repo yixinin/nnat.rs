@@ -1,70 +1,126 @@
-use s2n_quic::client::Connect;
 use s2n_quic::provider::io::tokio::Builder as IOBuilder;
-use s2n_quic::{Client, Server};
+use s2n_quic::stream::BidirectionalStream;
+use s2n_quic::Server;
 use std::error::Error;
 use std::net::SocketAddr;
-use std::net::UdpSocket;
-use std::os::windows::io::AsRawSocket;
 use std::path::Path;
-use tokio::time;
+use std::time::Duration;
+use tokio::net::{TcpSocket, UdpSocket};
 
 use crate::endpoint::Kind;
-use crate::message;
+use crate::message::{self, ConnMessage, Message, StunMessage};
 
 pub struct Backend {
     fqdn: String,
-    stun_addr: SocketAddr,
     laddr: SocketAddr,
+    stun_addr: String,
 }
 
 impl Backend {
-    pub fn new(fqdn: &str, stun_addr: SocketAddr, laddr: SocketAddr) -> Self {
+    pub fn new(fqdn: &str, laddr: SocketAddr, stun_addr: &str) -> Self {
         return Backend {
             fqdn: fqdn.to_string(),
-            stun_addr: stun_addr,
             laddr: laddr,
+            stun_addr: stun_addr.to_string(),
         };
     }
-    pub async fn run(self) -> Result<(), Box<dyn Error>> {
-        let socket = UdpSocket::bind(self.laddr)?;
-        let udp = socket.try_clone()?;
-        
-        tokio::spawn(async move {
-            _ = self.keepalive(socket).await;
+
+    pub async fn connect(
+        laddr: SocketAddr,
+        quic_stream: BidirectionalStream,
+    ) -> Result<(), Box<dyn Error>> {
+        let tcp_socket = TcpSocket::new_v4()?;
+        let tcp_socket = tcp_socket.connect(laddr).await?;
+        let (mut tcp_rx, mut tcp_tx) = tcp_socket.into_split();
+        let (mut quic_rx, mut quic_tx) = quic_stream.split();
+
+        let task = tokio::spawn(async move {
+            _ = tokio::io::copy(&mut tcp_rx, &mut quic_tx).await;
         });
-        let p = IOBuilder::default().with_rx_socket(udp)?.build()?;
-        let mut server = Server::builder()
-            .with_tls((Path::new("quic.crt"), Path::new("quic.key")))?
-            .with_io(p)?
-            .start()?;
+        _ = tokio::io::copy(&mut quic_rx, &mut tcp_tx).await;
+        _ = task.await?;
+        Ok(())
+    }
 
+    pub async fn run(self) -> Result<(), Box<dyn Error>> {
+        let laddr = self.laddr.clone();
+        let stun_addr = self.stun_addr.clone();
+        let fqdn = self.fqdn.clone();
+        while let Ok(socket) = Self::fetch(stun_addr.clone(), fqdn.clone()).await {
+            tokio::spawn(async move {
+                _ = Self::handle(socket, laddr.clone()).await;
+            });
+        }
+
+        Ok(())
+    }
+
+    pub async fn fetch(stun_addr: String, fqdn: String) -> Result<UdpSocket, Box<dyn Error>> {
+        let socket = UdpSocket::bind("0.0.0.0:0").await?;
+        let stun_addr = stun_addr;
+        let fqdn = fqdn;
+
+        let msg = StunMessage::new(Kind::Backend, fqdn);
+        let data = msg.encode()?;
+        let mut buf = [0; 1500];
         loop {
-            match server.accept().await {
-                Some(mut rconn) => {
-                    let stream = rconn.open_bidirectional_stream().await?;
-                    let (mut receive_stream, mut send_stream) = stream.split();
-                    tokio::spawn(async move {
-                        let mut stdout = tokio::io::stdout();
-                        let _ = tokio::io::copy(&mut receive_stream, &mut stdout).await;
-                    });
+            let data = data.clone();
+            _ = socket.send_to(&data, stun_addr.clone()).await?;
 
-                    // copy data from stdin and send it to the server
-                    let mut stdin = tokio::io::stdin();
-                    tokio::io::copy(&mut stdin, &mut send_stream).await?;
+            tokio::time::sleep(Duration::from_secs(2)).await;
+
+            if let Ok((n, raddr)) = socket.try_recv_from(&mut buf) {
+                let msg = message::decode(&buf[..n]);
+                match msg {
+                    Message::Stun(msg) => {
+                        println!("recv stun message {} from: {}", msg, raddr.to_string(),);
+                    }
+                    Message::Conn(msg) => {
+                        println!("recv conn message {} from {}", msg, raddr.to_string());
+
+                        let target_addr = msg.raddr.clone();
+                        let msg = ConnMessage::new(Kind::Backend, socket.local_addr()?, msg.fqdn);
+                        let data = msg.encode()?;
+                        _ = socket.send_to(&data, target_addr).await?;
+                        return Ok(socket);
+                    }
+                    Message::Unknown(data) => {
+                        println!("reccv unknown msg {:?}", data);
+                    }
                 }
-                None => {}
             }
         }
     }
+    pub async fn handle(socket: UdpSocket, laddr: SocketAddr) -> Result<(), Box<dyn Error>> {
+        let tx = socket.into_std()?;
+        let rx = tx.try_clone()?;
 
-    pub async fn keepalive(self, udp: UdpSocket) -> Result<(), Box<dyn Error>> {
-        let mut ticker = time::interval(time::Duration::from_secs(10));
-        let msg = message::StunMessage::new(Kind::Backend, self.fqdn);
-        let buf = msg.encode()?;
-        loop {
-            ticker.tick().await;
-            let buf = buf.clone();
-            udp.send_to(&buf, self.stun_addr)?;
+        let tls = s2n_quic::provider::tls::default::Server::builder()
+            .with_certificate(Path::new("quic.crt"), Path::new("quic.key"))?
+            .build()?;
+        let socket_io = IOBuilder::default()
+            .with_tx_socket(tx)?
+            .with_rx_socket(rx)?
+            .build()?;
+        println!("recv conn from frontend, start listen quic ...");
+        let mut server = Server::builder()
+            .with_tls(tls)?
+            .with_io(socket_io)?
+            .start()?;
+
+        println!("quic server started, accept msg ...");
+        while let Some(mut connection) = server.accept().await {
+            // spawn a new task for the connection
+            _ = tokio::spawn(async move {
+                println!("Connection accepted from {:?}", connection.remote_addr());
+
+                while let Ok(Some(stream)) = connection.accept_bidirectional_stream().await {
+                    _ = tokio::spawn(async move {
+                        _ = Self::connect(laddr.clone(), stream).await;
+                    });
+                }
+            });
         }
+        Ok(())
     }
 }
