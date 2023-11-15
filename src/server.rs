@@ -51,10 +51,10 @@ impl StunServer {
                                 let baddr = SocketAddr::from_str(k.as_str())?;
                                 let mut conn_msg = ConnMessage::new(baddr, fqdn.clone());
                                 let data = conn_msg.encode()?;
-                                if let Err(err) = socket.send_to(&data, raddr) {
+                                if let Err(err) = socket.send_to(&data, raddr.clone()) {
                                     println!("send udp conn message err:{}", err)
                                 }
-                                conn_msg.raddr = raddr;
+                                conn_msg.raddr = raddr.clone();
                                 let data = conn_msg.encode()?;
                                 if let Err(err) = socket.send_to(&data, k) {
                                     println!("send udp conn message err:{}", err)
