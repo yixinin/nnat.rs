@@ -1,15 +1,15 @@
 // use s2n_quic::provider::io::tokio::Builder as IOBuilder;
-use s2n_quic::provider::tls;
-use s2n_quic::{client::Connect, Client};
-use std::error::Error;
-use std::net::{SocketAddr, UdpSocket};
-use std::path::Path;
-use std::time::Duration;
-
 use crate::message::MessageKind;
 use crate::{endpoint, message, tls::InsecureSkipVerify};
 use endpoint::Kind;
 use message::{ConnMessage, StunMessage};
+use s2n_quic::provider::tls;
+use s2n_quic::{client::Connect, Client};
+use std::error::Error;
+use std::net::SocketAddr;
+use std::path::Path;
+use std::time::Duration;
+use tokio::net::UdpSocket;
 
 pub struct Frontend {
     fqdn: String,
@@ -64,16 +64,16 @@ impl Frontend {
         stun_addr: String,
         fqdn: String,
     ) -> Result<SocketAddr, Box<dyn Error>> {
-        let socket = UdpSocket::bind(laddr)?;
+        let socket = UdpSocket::bind(laddr).await?;
         let msg = StunMessage::new(Kind::Frontend, fqdn);
         let data = msg.encode()?;
 
         let mut buf = [0; 1500];
 
         let data = data.clone();
-        _ = socket.send_to(&data, stun_addr)?;
+        _ = socket.send_to(&data, stun_addr).await?;
 
-        let (n, _) = socket.recv_from(&mut buf)?;
+        let (n, _) = socket.recv_from(&mut buf).await?;
 
         let mut msg = ConnMessage::default();
         _ = msg.decode(&buf[..n])?;
@@ -89,16 +89,20 @@ impl Frontend {
         data.push(MessageKind::Conn as u8);
         data.append(&mut msg.encode()?);
 
-        _ = socket.send_to(&data, raddr.clone())?;
-
-        // // recv conn from backend
-        // let mut buf = [0; 1500];
-        // let (n, raddr) = socket.recv_from(&mut buf)?;
-        // let mut msg = ConnMessage::default();
-        // _ = msg.decode(&buf[..n])?;
-
-        // wait backend quic start
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        Ok(raddr)
+        let mut ticker = tokio::time::interval(Duration::from_secs(2));
+        let mut buf = [0 as u8; 1500];
+        loop {
+            _ = tokio::select! {
+                _= ticker.tick() =>{
+                    _ = socket.send_to(&data, raddr.clone()).await?;
+                },
+                r = socket.recv_from(&mut buf) =>{
+                    let (n, raddr) = r?;
+                    let mut msg = ConnMessage::default();
+                    _ = msg.decode(&buf[..n])?;
+                    return Ok(raddr)
+                }
+            }
+        }
     }
 }

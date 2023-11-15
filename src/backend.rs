@@ -80,10 +80,10 @@ impl Backend {
                 },
                 r = socket.recv_from(&mut buf)=>{
                     let (n, raddr)= r?;
-                    let kind =  MessageKind::from(buf[0]);
+                    let kind = MessageKind::from(buf[0]);
                     let buf = buf[1..n].to_vec();
-                    match kind{
-                        MessageKind::Stun=>{
+                    match kind {
+                        MessageKind::Stun => {
                             let mut msg = StunMessage::default();
                             _ = msg.decode(&buf[..])?;
                             println!(
@@ -92,8 +92,8 @@ impl Backend {
                                 raddr.to_string(),
                                 msg.fqdn,
                             );
-                        },
-                        MessageKind::Conn=>{
+                        }
+                        MessageKind::Conn => {
                             let mut msg = ConnMessage::default();
                             _ = msg.decode(&buf[..])?;
                             println!(
@@ -101,14 +101,16 @@ impl Backend {
                                 raddr.to_string(),
                                 msg.fqdn,
                             );
-                            return Ok(());
-                        },
-                        _=>{
+                            if msg.raddr.to_string() == raddr.to_string() {
+                                return Ok(());
+                            }
+                            let data = msg.encode()?;
+                            _ = socket.send_to(&data, stun_addr.clone()).await?;
+                        }
+                        _ => {
                             println!("reccv unknown msg");
                         }
                     }
-
-
                 },
             };
         }
