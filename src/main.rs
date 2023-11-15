@@ -15,9 +15,13 @@ use std::error::Error;
 
 #[derive(Parser)]
 pub struct Cli {
+    #[arg(long)]
     pub debug: Option<bool>,
+    #[arg(long)]
     pub b: Option<bool>,
+    #[arg(long)]
     pub f: Option<bool>,
+    #[arg(long)]
     pub stun: Option<bool>,
 }
 
