@@ -52,7 +52,7 @@ impl Cli {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let args = Cli::parse();
-    let stun_addr = "127.0.0.1:3440";
+    let stun_addr = "114.115.218.1:3440";
     let fqdn = "localhost";
     match args.kind() {
         CliKind::StunServer => {
