@@ -1,45 +1,41 @@
 use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use s2n_quic::Server;
 use std::error::Error;
-use std::net::SocketAddr;
 use std::path::Path;
 use std::time::Duration;
 use tokio::net::UdpSocket;
 use tokio::time;
 
 use crate::endpoint::Kind;
-use crate::message::StunMessage;
+use crate::message::{ConnMessage, MessageKind, StunMessage};
 
 pub struct Backend {
     fqdn: String,
-    stun_addr: SocketAddr,
-    laddr: SocketAddr,
+    laddr: String,
+    stun_addr: String,
 }
 
 impl Backend {
-    pub fn new(fqdn: &str, stun_addr: SocketAddr, laddr: SocketAddr) -> Self {
+    pub fn new(fqdn: &str, laddr: &str, stun_addr: &str) -> Self {
         return Backend {
             fqdn: fqdn.to_string(),
-            stun_addr: stun_addr,
-            laddr: laddr,
+            laddr: laddr.to_string(),
+            stun_addr: stun_addr.to_string(),
         };
     }
     pub async fn run(self) -> Result<(), Box<dyn Error>> {
-        let socket = UdpSocket::bind(self.laddr).await?;
-        let std_socket = socket.into_std()?;
+        let laddr = self.laddr.clone();
+        let stun_addr = self.stun_addr.clone();
+        let fqdn = self.fqdn.clone();
+        _ = self.fetch(laddr.clone(), stun_addr, fqdn).await?;
 
-        let socket = UdpSocket::from_std(std_socket.try_clone()?)?;
-        tokio::spawn(async move {
-            _ = self.stun_send(socket).await;
-        })
-        .await?;
-
-        let socket_io = IOBuilder::default().with_rx_socket(std_socket)?.build()?;
+        println!("recv conn from frontend, start listen quic ...");
         let mut server = Server::builder()
             .with_tls((Path::new("quic.crt"), Path::new("quic.key")))?
-            .with_io(socket_io)?
+            .with_io(laddr.as_str())?
             .start()?;
 
+        println!("quic server started, accept msg ...");
         while let Some(mut connection) = server.accept().await {
             // spawn a new task for the connection
             tokio::spawn(async move {
@@ -62,9 +58,15 @@ impl Backend {
         Ok(())
     }
 
-    pub async fn stun_send(self, socket: UdpSocket) -> Result<(), Box<dyn Error>> {
-        let stun_addr = self.stun_addr.clone();
-        let fqdn = self.fqdn.clone();
+    pub async fn fetch(
+        self,
+        laddr: String,
+        stun_addr: String,
+        fqdn: String,
+    ) -> Result<(), Box<dyn Error>> {
+        let socket = UdpSocket::bind(laddr).await?;
+        let stun_addr = stun_addr;
+        let fqdn = fqdn;
 
         let mut ticker = time::interval(Duration::from_secs(10));
         let msg = StunMessage::new(Kind::Backend, fqdn);
@@ -78,14 +80,35 @@ impl Backend {
                 },
                 r = socket.recv_from(&mut buf)=>{
                     let (n, raddr)= r?;
-                    let mut msg = StunMessage::default();
-                    _ = msg.decode(&buf[..n])?;
-                    println!(
-                        "recv stun message from: {} raddr: {}, fqdn: {}",
-                        msg.kind,
-                        raddr.to_string(),
-                        msg.fqdn,
-                    )
+                    let kind =  MessageKind::from(buf[0]);
+                    let buf = buf[1..n].to_vec();
+                    match kind{
+                        MessageKind::Stun=>{
+                            let mut msg = StunMessage::default();
+                            _ = msg.decode(&buf[..])?;
+                            println!(
+                                "recv stun message from: {} raddr: {}, fqdn: {}",
+                                msg.kind.to_string(),
+                                raddr.to_string(),
+                                msg.fqdn,
+                            );
+                        },
+                        MessageKind::Conn=>{
+                            let mut msg = ConnMessage::default();
+                            _ = msg.decode(&buf[..])?;
+                            println!(
+                                "recv conn message raddr: {}, fqdn: {}",
+                                raddr.to_string(),
+                                msg.fqdn,
+                            );
+                            return Ok(());
+                        },
+                        _=>{
+                            println!("reccv unknown msg");
+                        }
+                    }
+
+
                 },
             };
         }

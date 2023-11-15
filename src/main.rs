@@ -10,10 +10,7 @@ pub use backend::Backend;
 pub use frontend::Frontend;
 pub use server::StunServer;
 
-use std::{
-    error::Error,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-};
+use std::error::Error;
 
 #[derive(Parser)]
 pub struct Cli {
@@ -54,20 +51,19 @@ impl Cli {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let args = Cli::parse();
-    let stun_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8080));
+    let stun_addr = "127.0.0.1:3440";
+    let fqdn = "rust.iakl.top";
     match args.kind() {
-        CliKind::Backend => {
-            let laddr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 8081));
-            let be = Backend::new("rust.iakl.top", stun_addr, laddr);
-            be.run().await?;
-        }
         CliKind::StunServer => {
-            let laddr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 8080));
-            let mut s = StunServer::new(laddr);
+            let mut s = StunServer::new("0.0.0.0:3440");
             s.run()?;
         }
+        CliKind::Backend => {
+            let be = Backend::new(fqdn, "0.0.0.0:3441", stun_addr);
+            be.run().await?;
+        }
         CliKind::Frontend => {
-            let fb = Frontend::new("rust.iakl.top", stun_addr);
+            let fb = Frontend::new(fqdn, "0.0.0.0:3442", stun_addr);
             fb.run().await?;
         }
         CliKind::Unknown => {

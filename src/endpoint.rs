@@ -23,4 +23,12 @@ impl Kind {
             _ => Kind::Unknown,
         };
     }
+    pub fn to_string(self) -> String {
+        match self {
+            Kind::Backend => return "Backend".to_string(),
+            Kind::Frontend => return "Frontend".to_string(),
+            Kind::Stun => return "Stun".to_string(),
+            _ => return "Unknown".to_string(),
+        }
+    }
 }

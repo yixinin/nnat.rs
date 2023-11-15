@@ -40,6 +40,7 @@ impl MessageKind {
         };
     }
 }
+
 #[derive(Clone)]
 pub struct StunMessage {
     pub kind: Kind,
@@ -80,6 +81,7 @@ impl StunMessage {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct ConnMessage {
     pub fqdn: String,
     pub raddr: SocketAddr,

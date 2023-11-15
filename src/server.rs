@@ -10,23 +10,24 @@ use std::net::UdpSocket;
 use std::error::Error;
 
 use crate::endpoint::Kind;
-use crate::message::{ConnMessage, StunMessage};
+use crate::message::{ConnMessage, MessageKind, StunMessage};
 
 pub struct StunServer {
-    laddr: SocketAddr,
+    laddr: String,
     backends: HashMap<String, HashMap<String, Duration>>,
 }
 
 impl StunServer {
-    pub fn new(laddr: SocketAddr) -> Self {
+    pub fn new(laddr: &str) -> Self {
         return StunServer {
-            laddr: laddr,
+            laddr: laddr.to_string(),
             backends: HashMap::new(),
         };
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn Error>> {
-        let socket = UdpSocket::bind(self.laddr)?;
+        let laddr = self.laddr.clone();
+        let socket = UdpSocket::bind(laddr)?;
 
         let mut buf = [0u8; 1500];
         loop {
@@ -72,9 +73,12 @@ impl StunServer {
                             bs.insert(key, now);
                             println!("recv from backend: {}, fqdn: {}", raddr.to_string(), fqdn);
                             // send back to endpoint
-                            msg.kind = Kind::Stun;
-                            let data = msg.encode()?;
-                            socket.send_to(&data, raddr)?;
+                            let msg = StunMessage::new(Kind::Stun, msg.fqdn.clone());
+                            let mut data = msg.encode()?;
+                            let mut buf = Vec::with_capacity(data.len() + 1);
+                            buf.push(MessageKind::Stun as u8);
+                            buf.append(&mut data);
+                            socket.send_to(&buf, raddr)?;
                         }
                     }
                 }
