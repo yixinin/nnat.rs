@@ -2,12 +2,13 @@ use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use s2n_quic::Server;
 use std::error::Error;
 use std::net::SocketAddr;
-use std::net::UdpSocket;
 use std::path::Path;
+use std::time::Duration;
+use tokio::net::UdpSocket;
 use tokio::time;
 
 use crate::endpoint::Kind;
-use crate::message;
+use crate::message::StunMessage;
 
 pub struct Backend {
     fqdn: String,
@@ -24,14 +25,16 @@ impl Backend {
         };
     }
     pub async fn run(self) -> Result<(), Box<dyn Error>> {
-        let socket = UdpSocket::bind(self.laddr)?;
-        let socket_clone = socket.try_clone()?;
+        let socket = UdpSocket::bind(self.laddr).await?;
+        let std_socket = socket.into_std()?;
 
+        let socket = UdpSocket::from_std(std_socket.try_clone()?)?;
         tokio::spawn(async move {
-            _ = self.keepalive(socket).await;
-        });
-        let socket_io: s2n_quic::provider::io::Default =
-            IOBuilder::default().with_rx_socket(socket_clone)?.build()?;
+            _ = self.stun_send(socket).await;
+        })
+        .await?;
+
+        let socket_io = IOBuilder::default().with_rx_socket(std_socket)?.build()?;
         let mut server = Server::builder()
             .with_tls((Path::new("quic.crt"), Path::new("quic.key")))?
             .with_io(socket_io)?
@@ -59,14 +62,32 @@ impl Backend {
         Ok(())
     }
 
-    pub async fn keepalive(self, udp: UdpSocket) -> Result<(), Box<dyn Error>> {
-        let mut ticker = time::interval(time::Duration::from_secs(10));
-        let msg = message::StunMessage::new(Kind::Backend, self.fqdn);
-        let buf = msg.encode()?;
+    pub async fn stun_send(self, socket: UdpSocket) -> Result<(), Box<dyn Error>> {
+        let stun_addr = self.stun_addr.clone();
+        let fqdn = self.fqdn.clone();
+
+        let mut ticker = time::interval(Duration::from_secs(10));
+        let msg = StunMessage::new(Kind::Backend, fqdn);
+        let data = msg.encode()?;
+        let mut buf = [0; 1500];
         loop {
-            ticker.tick().await;
-            let buf = buf.clone();
-            udp.send_to(&buf, self.stun_addr)?;
+            _ = tokio::select! {
+                 _= ticker.tick() => {
+                    let data = data.clone();
+                    _ = socket.send_to(&data, stun_addr.clone()).await?;
+                },
+                r = socket.recv_from(&mut buf)=>{
+                    let (n, raddr)= r?;
+                    let mut msg = StunMessage::default();
+                    _ = msg.decode(&buf[..n])?;
+                    println!(
+                        "recv stun message from: {} raddr: {}, fqdn: {}",
+                        msg.kind,
+                        raddr.to_string(),
+                        msg.fqdn,
+                    )
+                },
+            };
         }
     }
 }

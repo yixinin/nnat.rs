@@ -26,20 +26,21 @@ impl StunServer {
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn Error>> {
-        let udp = UdpSocket::bind(self.laddr)?;
+        let socket = UdpSocket::bind(self.laddr)?;
 
         let mut buf = [0u8; 1500];
         loop {
-            let (n, raddr) = udp.recv_from(&mut buf)?;
+            let (n, raddr) = socket.recv_from(&mut buf)?;
             if n > 0 {
                 let mut msg = StunMessage::default();
                 msg.decode(&buf[..n])?;
                 let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
                 match msg.kind {
                     Kind::Unknown => {}
+                    Kind::Stun => {}
                     Kind::Frontend => {
                         let mut rm_keys = Vec::new();
-                        let fqdn = msg.fqdn;
+                        let fqdn = msg.fqdn.clone();
                         if let Some(bs) = self.backends.get_mut(fqdn.clone().as_str()) {
                             for (k, v) in bs {
                                 if now.sub(*v) > Duration::from_secs(120) {
@@ -48,8 +49,8 @@ impl StunServer {
                                 }
                                 let baddr = SocketAddr::from_str(k.as_str())?;
                                 let conn_msg = ConnMessage::new(baddr, fqdn.clone());
-                                let buf = conn_msg.encode()?;
-                                if let Err(err) = udp.send_to(&buf, raddr) {
+                                let data = conn_msg.encode()?;
+                                if let Err(err) = socket.send_to(&data, raddr) {
                                     println!("send udp conn message err:{}", err)
                                 }
                                 break;
@@ -62,7 +63,7 @@ impl StunServer {
                         }
                     }
                     Kind::Backend => {
-                        let fqdn = msg.fqdn;
+                        let fqdn = msg.fqdn.clone();
                         if !self.backends.contains_key(fqdn.clone().as_str()) {
                             self.backends.insert(fqdn.clone(), HashMap::new());
                         }
@@ -70,6 +71,10 @@ impl StunServer {
                             let key = raddr.to_string();
                             bs.insert(key, now);
                             println!("recv from backend: {}, fqdn: {}", raddr.to_string(), fqdn);
+                            // send back to endpoint
+                            msg.kind = Kind::Stun;
+                            let data = msg.encode()?;
+                            socket.send_to(&data, raddr)?;
                         }
                     }
                 }

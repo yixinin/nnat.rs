@@ -37,13 +37,24 @@ impl Frontend {
         let mut msg = ConnMessage::default();
         _ = msg.decode(&buf[..n])?;
 
+        println!(
+            "recv conn message, fqdn:{} raddr:{}",
+            msg.fqdn,
+            msg.raddr.to_string()
+        );
+
+        socket.send_to(&buf[..n], msg.raddr)?;
+
         let socket_io = IOBuilder::default().with_rx_socket(socket)?.build()?;
         let client = Client::builder()
             .with_tls(Path::new("quic.crt"))?
             .with_io(socket_io)?
             .start()?;
 
+        // try send raw message to raddr
+
         let connect = Connect::new(msg.raddr).with_server_name(self.fqdn.as_str());
+
         let mut connection = client.connect(connect).await?;
         connection.keep_alive(true)?;
         let stream = connection.open_bidirectional_stream().await?;

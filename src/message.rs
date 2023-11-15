@@ -40,6 +40,7 @@ impl MessageKind {
         };
     }
 }
+#[derive(Clone)]
 pub struct StunMessage {
     pub kind: Kind,
     pub fqdn: String,
@@ -58,6 +59,7 @@ impl StunMessage {
             fqdn: fqdn,
         };
     }
+
     pub fn encode(self) -> Result<Vec<u8>, FmtError> {
         if self.kind == Kind::Unknown {
             return Err(FmtError::new("kind error"));
@@ -99,7 +101,7 @@ impl ConnMessage {
     pub fn encode(self) -> Result<Vec<u8>, FmtError> {
         let mut ip_size = 4;
         if self.raddr.is_ipv6() {
-            ip_size = 6;
+            ip_size = 16;
         } else if !self.raddr.is_ipv4() {
             return Err(FmtError::new("ip type error"));
         }
@@ -162,11 +164,11 @@ impl ConnMessage {
             _ => return Err(FmtError::new("ip format error")),
         };
         let mut pb = [0; 2];
-        pb[0] = buf[ip_size];
-        pb[1] = buf[ip_size + 1];
+        pb[0] = buf[ip_size + 1];
+        pb[1] = buf[ip_size + 2];
         let port = u16::from_be_bytes(pb);
         self.raddr = SocketAddr::new(ip, port);
-        self.fqdn = String::from_utf8_lossy(&buf[ip_size + 2..]).to_string();
+        self.fqdn = String::from_utf8_lossy(&buf[(ip_size + 3)..]).to_string();
         return Ok(());
     }
 }
