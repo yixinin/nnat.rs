@@ -1,4 +1,4 @@
-use s2n_quic::provider::io::tokio::Builder as IOBuilder;
+// use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use s2n_quic::provider::tls;
 use s2n_quic::{client::Connect, Client};
 use std::error::Error;
@@ -7,7 +7,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use crate::message::MessageKind;
-use crate::{endpoint, message, tls::IgnoreTls};
+use crate::{endpoint, message, tls::InsecureSkipVerify};
 use endpoint::Kind;
 use message::{ConnMessage, StunMessage};
 
@@ -34,7 +34,7 @@ impl Frontend {
         // let socket_io = IOBuilder::default().with_tx_socket(socket)?.build()?;
         let tls = tls::default::Client::builder()
             .with_certificate(Path::new("quic.crt"))?
-            .with_verify_host_name_callback(IgnoreTls {})?
+            .with_verify_host_name_callback(InsecureSkipVerify {})?
             .build()?;
         let client = Client::builder()
             .with_tls(tls)?
