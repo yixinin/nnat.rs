@@ -1,10 +1,8 @@
-use s2n_quic::client::Connect;
 use s2n_quic::provider::io::tokio::Builder as IOBuilder;
-use s2n_quic::{Client, Server};
+use s2n_quic::Server;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::net::UdpSocket;
-use std::os::windows::io::AsRawSocket;
 use std::path::Path;
 use tokio::time;
 
@@ -27,34 +25,38 @@ impl Backend {
     }
     pub async fn run(self) -> Result<(), Box<dyn Error>> {
         let socket = UdpSocket::bind(self.laddr)?;
-        let udp = socket.try_clone()?;
-        
+        let socket_clone = socket.try_clone()?;
+
         tokio::spawn(async move {
             _ = self.keepalive(socket).await;
         });
-        let p = IOBuilder::default().with_rx_socket(udp)?.build()?;
+        let socket_io: s2n_quic::provider::io::Default =
+            IOBuilder::default().with_rx_socket(socket_clone)?.build()?;
         let mut server = Server::builder()
             .with_tls((Path::new("quic.crt"), Path::new("quic.key")))?
-            .with_io(p)?
+            .with_io(socket_io)?
             .start()?;
 
-        loop {
-            match server.accept().await {
-                Some(mut rconn) => {
-                    let stream = rconn.open_bidirectional_stream().await?;
-                    let (mut receive_stream, mut send_stream) = stream.split();
-                    tokio::spawn(async move {
-                        let mut stdout = tokio::io::stdout();
-                        let _ = tokio::io::copy(&mut receive_stream, &mut stdout).await;
-                    });
+        while let Some(mut connection) = server.accept().await {
+            // spawn a new task for the connection
+            tokio::spawn(async move {
+                eprintln!("Connection accepted from {:?}", connection.remote_addr());
 
-                    // copy data from stdin and send it to the server
-                    let mut stdin = tokio::io::stdin();
-                    tokio::io::copy(&mut stdin, &mut send_stream).await?;
+                while let Ok(Some(mut stream)) = connection.accept_bidirectional_stream().await {
+                    // spawn a new task for the stream
+                    tokio::spawn(async move {
+                        eprintln!("Stream opened from {:?}", stream.connection().remote_addr());
+
+                        // echo any data back to the stream
+                        while let Ok(Some(data)) = stream.receive().await {
+                            stream.send(data).await.expect("stream should be open");
+                        }
+                    });
                 }
-                None => {}
-            }
+            });
         }
+
+        Ok(())
     }
 
     pub async fn keepalive(self, udp: UdpSocket) -> Result<(), Box<dyn Error>> {
