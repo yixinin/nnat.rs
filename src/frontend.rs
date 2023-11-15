@@ -1,4 +1,5 @@
 use s2n_quic::provider::io::tokio::Builder as IOBuilder;
+use s2n_quic::provider::tls;
 use s2n_quic::{client::Connect, Client};
 use std::error::Error;
 use std::net::{SocketAddr, UdpSocket};
@@ -6,7 +7,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use crate::message::MessageKind;
-use crate::{endpoint, message};
+use crate::{endpoint, message, tls::IgnoreTls};
 use endpoint::Kind;
 use message::{ConnMessage, StunMessage};
 
@@ -31,22 +32,20 @@ impl Frontend {
         let fqdn = self.fqdn.clone();
         let raddr = self.fetch(laddr.clone(), stun_addr, fqdn.clone()).await?;
         // let socket_io = IOBuilder::default().with_tx_socket(socket)?.build()?;
+        let tls = tls::default::Client::builder()
+            .with_certificate(Path::new("quic.crt"))?
+            .with_verify_host_name_callback(IgnoreTls {})?
+            .build()?;
         let client = Client::builder()
-            .with_tls(Path::new("quic.crt"))?
+            .with_tls(tls)?
             .with_io(laddr.as_str())?
             .start()?;
 
-        // try send raw message to raddr
-
         let connect = Connect::new(raddr.clone()).with_server_name(fqdn.as_str());
-
         let mut connection = client.connect(connect).await?;
         connection.keep_alive(true)?;
         let stream = connection.open_bidirectional_stream().await?;
         let (mut receive_stream, mut send_stream) = stream.split();
-
-        // ensure the connection doesn't time out with inactivity
-        connection.keep_alive(true)?;
 
         tokio::spawn(async move {
             let mut stdout = tokio::io::stdout();
@@ -99,7 +98,7 @@ impl Frontend {
         // _ = msg.decode(&buf[..n])?;
 
         // wait backend quic start
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
         Ok(raddr)
     }
 }

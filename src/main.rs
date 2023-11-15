@@ -3,6 +3,7 @@ pub mod endpoint;
 pub mod frontend;
 pub mod message;
 pub mod server;
+pub mod tls;
 
 use clap::Parser;
 
@@ -52,7 +53,7 @@ impl Cli {
 async fn main() -> Result<(), Box<dyn Error>> {
     let args = Cli::parse();
     let stun_addr = "127.0.0.1:3440";
-    let fqdn = "rust.iakl.top";
+    let fqdn = "localhost";
     match args.kind() {
         CliKind::StunServer => {
             let mut s = StunServer::new("0.0.0.0:3440");
