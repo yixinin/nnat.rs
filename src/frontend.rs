@@ -8,12 +8,9 @@ use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use s2n_quic::{client::Connect, Client};
 use std::error::Error;
 use std::net::SocketAddr;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
-
-use tokio::sync::mpsc::channel;
 
 pub struct Frontend {
     fqdn: String,
@@ -46,9 +43,9 @@ impl Frontend {
 
         let mut buf = [0; 1500];
 
-        let (n, raddr) = rx_udp.recv_from(&mut buf)?;
+        let (n, _) = rx_udp.recv_from(&mut buf)?;
         let mut msg = ConnMessage::default();
-        _ = msg.decode(&buf)?;
+        _ = msg.decode(&buf[..n])?;
 
         let target_addr = msg.raddr.clone();
         let fqdn_clone = fqdn.clone();
@@ -62,7 +59,7 @@ impl Frontend {
                             println!("{}", err);
                             return;
                         }
-                        ticker.tick();
+                        ticker.tick().await;
                     }
                 }
             }
@@ -89,8 +86,6 @@ impl Frontend {
             }
         }
 
-        
-
         let verifier = Arc::new(NoCertVerifier {});
         let mut cb = ClientConfig::builder()
             .with_safe_default_cipher_suites()
@@ -112,8 +107,7 @@ impl Frontend {
             .with_io(socket_io)?
             .start()?;
 
-        let connect = Connect::new(target_addr)
-            .with_server_name(fqdn.clone().as_str());
+        let connect = Connect::new(target_addr).with_server_name(fqdn.clone().as_str());
         let mut connection = client.connect(connect).await?;
         connection.keep_alive(true)?;
         let stream = connection.open_bidirectional_stream().await?;

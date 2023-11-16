@@ -174,6 +174,7 @@ impl ConnMessage {
         pb[0] = buf[1+ip_size + 1];
         pb[1] = buf[1+ip_size + 2];
         let port = u16::from_be_bytes(pb);
+        self.kind = kind;
         self.raddr = SocketAddr::new(ip, port);
         self.fqdn = String::from_utf8_lossy(&buf[(1+ip_size + 3)..]).to_string();
         return Ok(());
