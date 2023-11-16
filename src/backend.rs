@@ -1,4 +1,4 @@
-// use s2n_quic::provider::io::tokio::Builder as IOBuilder;
+use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use s2n_quic::Server;
 use std::error::Error;
 use std::path::Path;
@@ -28,16 +28,19 @@ impl Backend {
         let laddr = self.laddr.clone();
         let stun_addr = self.stun_addr.clone();
         let fqdn = self.fqdn.clone();
-        _ = self.fetch(laddr.clone(), stun_addr, fqdn).await?;
+        let socket = self.fetch(laddr.clone(), stun_addr, fqdn).await?;
+
+        let tx = socket.into_std()?;
+        let rx = tx.try_clone()?;
 
         let tls = s2n_quic_rustls::Server::builder()
             .with_certificate(Path::new("quic.crt"), Path::new("quic.key"))?
             .build()?;
-
+        let socket_io = IOBuilder::default().with_tx_socket(tx)?.with_rx_socket(rx)?.build()?;
         println!("recv conn from frontend, start listen quic ...");
         let mut server = Server::builder()
             .with_tls(tls)?
-            .with_io(laddr.as_str())?
+            .with_io(socket_io)?
             .start()?;
 
         println!("quic server started, accept msg ...");
@@ -68,7 +71,7 @@ impl Backend {
         laddr: String,
         stun_addr: String,
         fqdn: String,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<UdpSocket, Box<dyn Error>> {
         let socket = UdpSocket::bind(laddr).await?;
         let stun_addr = stun_addr;
         let fqdn = fqdn;
@@ -107,7 +110,7 @@ impl Backend {
                                 msg.fqdn,
                             );
                             if msg.raddr.to_string() == raddr.to_string() {
-                                return Ok(());
+                                return Ok(socket);
                             }
                             let data = msg.encode()?;
                             _ = socket.send_to(&data, stun_addr.clone()).await?;

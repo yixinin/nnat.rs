@@ -1,17 +1,19 @@
-// use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use crate::message::MessageKind;
 use crate::tls::NoCertVerifier;
 use crate::{endpoint, message};
 use endpoint::Kind;
 use message::{ConnMessage, StunMessage};
 use rustls::client::ClientConfig;
+use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use s2n_quic::{client::Connect, Client};
 use std::error::Error;
 use std::net::SocketAddr;
-use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
+
+use tokio::sync::mpsc::channel;
 
 pub struct Frontend {
     fqdn: String,
@@ -32,8 +34,62 @@ impl Frontend {
         let laddr = self.laddr.clone();
         let stun_addr = self.stun_addr.clone();
         let fqdn = self.fqdn.clone();
-        let raddr = self.fetch(laddr.clone(), stun_addr, fqdn.clone()).await?;
-        // let socket_io = IOBuilder::default().with_tx_socket(socket)?.build()?;
+
+        let socket: UdpSocket = UdpSocket::bind(laddr).await?;
+        let socket = socket.into_std()?;
+        let tx_udp = socket.try_clone()?;
+        let rx_udp = tx_udp.try_clone()?;
+
+        let msg = StunMessage::new(Kind::Frontend, fqdn.clone());
+        let data = msg.encode()?;
+        _ = tx_udp.send_to(&data, stun_addr)?;
+
+        let mut buf = [0; 1500];
+
+        let (n, raddr) = rx_udp.recv_from(&mut buf)?;
+        let mut msg = ConnMessage::default();
+        _ = msg.decode(&buf)?;
+
+        let target_addr = msg.raddr.clone();
+        let fqdn_clone = fqdn.clone();
+        let task = tokio::spawn(async move {
+            if let Ok(laddr) = tx_udp.local_addr() {
+                let msg = ConnMessage::new(Kind::Frontend, laddr, fqdn_clone);
+                if let Ok(data) = msg.encode() {
+                    let mut ticker = tokio::time::interval(Duration::from_secs(2));
+                    loop {
+                        if let Err(err) = tx_udp.send_to(&data, target_addr) {
+                            println!("{}", err);
+                            return;
+                        }
+                        ticker.tick();
+                    }
+                }
+            }
+        });
+
+        let mut buf = [0; 1500];
+        loop {
+            let (n, _) = rx_udp.recv_from(&mut buf)?;
+            let mut msg = ConnMessage::default();
+            msg.decode(&mut buf[..n])?;
+            match msg.kind {
+                Kind::Backend => {
+                    task.abort();
+                    break;
+                }
+                _ => {
+                    println!(
+                        "recv msg {} {} {}",
+                        msg.kind,
+                        msg.raddr.to_string(),
+                        msg.fqdn
+                    );
+                }
+            }
+        }
+
+        
 
         let verifier = Arc::new(NoCertVerifier {});
         let mut cb = ClientConfig::builder()
@@ -47,12 +103,17 @@ impl Frontend {
 
         let tls = s2n_quic_rustls::Client::new(cb);
 
+        let socket_io = IOBuilder::default()
+            .with_tx_socket(socket)?
+            .with_rx_socket(rx_udp)?
+            .build()?;
         let client = Client::builder()
             .with_tls(tls)?
-            .with_io(laddr.as_str())?
+            .with_io(socket_io)?
             .start()?;
 
-        let connect = Connect::new(raddr.clone()).with_server_name(fqdn.as_str());
+        let connect = Connect::new(target_addr)
+            .with_server_name(fqdn.clone().as_str());
         let mut connection = client.connect(connect).await?;
         connection.keep_alive(true)?;
         let stream = connection.open_bidirectional_stream().await?;

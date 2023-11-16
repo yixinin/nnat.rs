@@ -49,7 +49,7 @@ impl StunServer {
                                     continue;
                                 }
                                 let baddr = SocketAddr::from_str(k.as_str())?;
-                                let msg = ConnMessage::new(baddr, fqdn.clone());
+                                let msg = ConnMessage::new(Kind::Backend,baddr, fqdn.clone());
                                 let data = msg.clone().encode()?;
                                 if let Err(err) = socket.send_to(&data, raddr.clone()) {
                                     println!("send udp conn message err:{}", err)
