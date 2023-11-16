@@ -1,12 +1,15 @@
 // use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use crate::message::MessageKind;
+use crate::tls::NoCertVerifier;
 use crate::{endpoint, message};
 use endpoint::Kind;
 use message::{ConnMessage, StunMessage};
+use rustls::client::ClientConfig;
 use s2n_quic::{client::Connect, Client};
 use std::error::Error;
 use std::net::SocketAddr;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
 
@@ -31,9 +34,18 @@ impl Frontend {
         let fqdn = self.fqdn.clone();
         let raddr = self.fetch(laddr.clone(), stun_addr, fqdn.clone()).await?;
         // let socket_io = IOBuilder::default().with_tx_socket(socket)?.build()?;
-        let tls = s2n_quic_rustls::Client::builder()
-            .with_certificate(Path::new("quic.crt"))?
-            .build()?;
+
+        let verifier = Arc::new(NoCertVerifier {});
+        let mut cb = ClientConfig::builder()
+            .with_safe_default_cipher_suites()
+            .with_safe_default_kx_groups()
+            .with_safe_default_protocol_versions()?
+            .with_custom_certificate_verifier(verifier.clone())
+            .with_no_client_auth();
+
+        cb.dangerous().set_certificate_verifier(verifier);
+
+        let tls = s2n_quic_rustls::Client::new(cb);
 
         let client = Client::builder()
             .with_tls(tls)?
