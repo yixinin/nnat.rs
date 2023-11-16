@@ -1,9 +1,8 @@
 // use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use crate::message::MessageKind;
-use crate::{endpoint, message, tls::InsecureSkipVerify};
+use crate::{endpoint, message};
 use endpoint::Kind;
 use message::{ConnMessage, StunMessage};
-use s2n_quic::provider::tls;
 use s2n_quic::{client::Connect, Client};
 use std::error::Error;
 use std::net::SocketAddr;
@@ -32,10 +31,10 @@ impl Frontend {
         let fqdn = self.fqdn.clone();
         let raddr = self.fetch(laddr.clone(), stun_addr, fqdn.clone()).await?;
         // let socket_io = IOBuilder::default().with_tx_socket(socket)?.build()?;
-        let tls = tls::default::Client::builder()
+        let tls = s2n_quic_rustls::Client::builder()
             .with_certificate(Path::new("quic.crt"))?
-            .with_verify_host_name_callback(InsecureSkipVerify {})?
             .build()?;
+
         let client = Client::builder()
             .with_tls(tls)?
             .with_io(laddr.as_str())?

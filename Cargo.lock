@@ -473,12 +473,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d77f7ec81a6d05a3abb01ab6eb7590f6083d08449fe5a1c8b1e620283546ccb7"
 
 [[package]]
-name = "hex"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
-
-[[package]]
 name = "hex-literal"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -619,8 +613,9 @@ name = "nnat"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "rustls",
  "s2n-quic",
- "s2n-tls",
+ "s2n-quic-rustls",
  "tokio",
 ]
 
@@ -691,18 +686,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
 
 [[package]]
-name = "openssl-sys"
-version = "0.9.95"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40a4130519a360279579c2053038317e40eff64d13fd3f004f9e1b72b8a6aaf9"
-dependencies = [
- "cc",
- "libc",
- "pkg-config",
- "vcpkg",
-]
-
-[[package]]
 name = "parking_lot"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -748,12 +731,6 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
-
-[[package]]
-name = "pkg-config"
-version = "0.3.27"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26072860ba924cbfa98ea39c8c19b4dd6a4a25423dbdf219c1eca91aa0cf6964"
 
 [[package]]
 name = "ppv-lite86"
@@ -1012,7 +989,7 @@ dependencies = [
  "s2n-quic-core",
  "s2n-quic-crypto",
  "s2n-quic-platform",
- "s2n-quic-tls-default",
+ "s2n-quic-rustls",
  "s2n-quic-transport",
  "tokio",
  "zerocopy 0.6.5",
@@ -1087,31 +1064,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "s2n-quic-tls"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa148d311be1987c561c598a248df15bfa9694f7dc2a38be6254325734267839"
-dependencies = [
- "bytes",
- "errno",
- "libc",
- "s2n-codec",
- "s2n-quic-core",
- "s2n-quic-crypto",
- "s2n-tls",
-]
-
-[[package]]
-name = "s2n-quic-tls-default"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d9baefb051ed0b9e295df8ed2a9d37999f36d5e1d42763a408c8dd510ffc5c4"
-dependencies = [
- "s2n-quic-rustls",
- "s2n-quic-tls",
-]
-
-[[package]]
 name = "s2n-quic-transport"
 version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1127,30 +1079,6 @@ dependencies = [
  "s2n-quic-core",
  "siphasher",
  "smallvec",
-]
-
-[[package]]
-name = "s2n-tls"
-version = "0.0.39"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11e205f4295b676faa5a133c2bc21792e628028d6460c392e582c4a514610092"
-dependencies = [
- "errno",
- "hex",
- "libc",
- "pin-project-lite",
- "s2n-tls-sys",
-]
-
-[[package]]
-name = "s2n-tls-sys"
-version = "0.0.39"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4871ff5022b2af175a9474de5a527ea522bfb35093059db3408255e3c3bec011"
-dependencies = [
- "cc",
- "libc",
- "openssl-sys",
 ]
 
 [[package]]
@@ -1303,12 +1231,6 @@ name = "utf8parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
-
-[[package]]
-name = "vcpkg"
-version = "0.2.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "version_check"

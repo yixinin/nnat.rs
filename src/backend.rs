@@ -23,15 +23,20 @@ impl Backend {
             stun_addr: stun_addr.to_string(),
         };
     }
+
     pub async fn run(self) -> Result<(), Box<dyn Error>> {
         let laddr = self.laddr.clone();
         let stun_addr = self.stun_addr.clone();
         let fqdn = self.fqdn.clone();
         _ = self.fetch(laddr.clone(), stun_addr, fqdn).await?;
 
+        let tls = s2n_quic_rustls::Server::builder()
+            .with_certificate(Path::new("quic.crt"), Path::new("quic.key"))?
+            .build()?;
+
         println!("recv conn from frontend, start listen quic ...");
         let mut server = Server::builder()
-            .with_tls((Path::new("quic.crt"), Path::new("quic.key")))?
+            .with_tls(tls)?
             .with_io(laddr.as_str())?
             .start()?;
 
