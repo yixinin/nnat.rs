@@ -10,7 +10,7 @@ use std::net::UdpSocket;
 use std::error::Error;
 
 use crate::endpoint::Kind;
-use crate::message::{ConnMessage, MessageKind, StunMessage};
+use crate::message::{ConnMessage, StunMessage};
 
 pub struct StunServer {
     laddr: String,
@@ -34,7 +34,7 @@ impl StunServer {
             let (n, raddr) = socket.recv_from(&mut buf)?;
             if n > 0 {
                 let mut msg = StunMessage::default();
-                msg.decode(&buf[..n])?;
+                _ = msg.decode(&buf[..n])?;
                 let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
                 match msg.kind {
                     Kind::Unknown => {}
@@ -49,7 +49,7 @@ impl StunServer {
                                     continue;
                                 }
                                 let baddr = SocketAddr::from_str(k.as_str())?;
-                                let msg = ConnMessage::new(Kind::Backend,baddr, fqdn.clone());
+                                let msg = ConnMessage::new(Kind::Backend, baddr, fqdn.clone());
                                 let data = msg.clone().encode()?;
                                 if let Err(err) = socket.send_to(&data, raddr.clone()) {
                                     println!("send udp conn message err:{}", err)
@@ -80,11 +80,8 @@ impl StunServer {
                             println!("recv from backend: {}, fqdn: {}", raddr.to_string(), fqdn);
                             // send back to endpoint
                             let msg = StunMessage::new(Kind::Stun, msg.fqdn.clone());
-                            let mut data = msg.encode()?;
-                            let mut buf = Vec::with_capacity(data.len() + 1);
-                            buf.push(MessageKind::Stun as u8);
-                            buf.append(&mut data);
-                            socket.send_to(&buf, raddr)?;
+                            let data = msg.encode()?;
+                            socket.send_to(&data, raddr)?;
                         }
                     }
                 }

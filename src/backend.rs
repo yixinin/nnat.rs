@@ -33,10 +33,13 @@ impl Backend {
         let tx = socket.into_std()?;
         let rx = tx.try_clone()?;
 
-        let tls = s2n_quic_rustls::Server::builder()
+        let tls = s2n_quic::provider::tls::rustls::Server::builder()
             .with_certificate(Path::new("quic.crt"), Path::new("quic.key"))?
             .build()?;
-        let socket_io = IOBuilder::default().with_tx_socket(tx)?.with_rx_socket(rx)?.build()?;
+        let socket_io = IOBuilder::default()
+            .with_tx_socket(tx)?
+            .with_rx_socket(rx)?
+            .build()?;
         println!("recv conn from frontend, start listen quic ...");
         let mut server = Server::builder()
             .with_tls(tls)?
@@ -89,11 +92,10 @@ impl Backend {
                 r = socket.recv_from(&mut buf)=>{
                     let (n, raddr)= r?;
                     let kind = MessageKind::from(buf[0]);
-                    let buf = buf[1..n].to_vec();
                     match kind {
                         MessageKind::Stun => {
                             let mut msg = StunMessage::default();
-                            _ = msg.decode(&buf[..])?;
+                            _ = msg.decode(&buf[..n])?;
                             println!(
                                 "recv stun message from: {} raddr: {}, fqdn: {}",
                                 msg.kind.to_string(),
@@ -103,7 +105,7 @@ impl Backend {
                         }
                         MessageKind::Conn => {
                             let mut msg = ConnMessage::default();
-                            _ = msg.decode(&buf[..])?;
+                            _ = msg.decode(&buf[..n])?;
                             println!(
                                 "recv conn message raddr: {}, fqdn: {}",
                                 raddr.to_string(),

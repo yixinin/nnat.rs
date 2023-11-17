@@ -16,13 +16,13 @@ use std::error::Error;
 #[derive(Parser)]
 pub struct Cli {
     #[arg(long)]
-    pub debug: Option<bool>,
+    pub debug: bool,
     #[arg(long)]
-    pub b: Option<bool>,
+    pub b: bool,
     #[arg(long)]
-    pub f: Option<bool>,
+    pub f: bool,
     #[arg(long)]
-    pub stun: Option<bool>,
+    pub stun: bool,
 }
 
 pub enum CliKind {
@@ -34,21 +34,18 @@ pub enum CliKind {
 
 impl Cli {
     pub fn kind(self) -> CliKind {
-        if let Some(b) = self.b {
-            if b {
-                return CliKind::Backend;
-            }
+        if self.b {
+            return CliKind::Backend;
         }
-        if let Some(f) = self.f {
-            if f {
-                return CliKind::Frontend;
-            }
+
+        if self.f {
+            return CliKind::Frontend;
         }
-        if let Some(stun) = self.stun {
-            if stun {
-                return CliKind::StunServer;
-            }
+
+        if self.stun {
+            return CliKind::StunServer;
         }
+
         return CliKind::Unknown;
     }
 }

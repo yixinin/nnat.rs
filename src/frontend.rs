@@ -1,4 +1,3 @@
-use crate::message::MessageKind;
 use crate::tls::NoCertVerifier;
 use crate::{endpoint, message};
 use endpoint::Kind;
@@ -7,10 +6,10 @@ use rustls::client::ClientConfig;
 use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use s2n_quic::{client::Connect, Client};
 use std::error::Error;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
+use tokio::task::JoinHandle;
 
 pub struct Frontend {
     fqdn: String,
@@ -33,37 +32,61 @@ impl Frontend {
         let fqdn = self.fqdn.clone();
 
         let socket: UdpSocket = UdpSocket::bind(laddr).await?;
-        let socket = socket.into_std()?;
-        let tx_udp = socket.try_clone()?;
-        let rx_udp = tx_udp.try_clone()?;
 
         let msg = StunMessage::new(Kind::Frontend, fqdn.clone());
         let data = msg.encode()?;
-        _ = tx_udp.send_to(&data, stun_addr)?;
+        _ = socket.send_to(&data, stun_addr).await?;
 
         let mut buf = [0; 1500];
 
-        let (n, _) = rx_udp.recv_from(&mut buf)?;
+        let (n, _) = socket.recv_from(&mut buf).await?;
         let mut msg = ConnMessage::default();
         _ = msg.decode(&buf[..n])?;
 
         let target_addr = msg.raddr.clone();
         let fqdn_clone = fqdn.clone();
-        let task = tokio::spawn(async move {
-            if let Ok(laddr) = tx_udp.local_addr() {
-                let msg = ConnMessage::new(Kind::Frontend, laddr, fqdn_clone);
-                if let Ok(data) = msg.encode() {
-                    let mut ticker = tokio::time::interval(Duration::from_secs(2));
-                    loop {
-                        if let Err(err) = tx_udp.send_to(&data, target_addr) {
-                            println!("{}", err);
-                            return;
+        let task: JoinHandle<Result<UdpSocket, std::io::Error>> = tokio::spawn(async move {
+            let laddr = socket.local_addr()?;
+            let msg = ConnMessage::new(Kind::Frontend, laddr, fqdn_clone);
+            let data = msg.encode().unwrap();
+            let mut buf = [0; 1500];
+            loop {
+                _ = socket.send_to(&data, target_addr).await?;
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                match socket.try_recv_from(&mut buf) {
+                    Ok((n, _raddr)) => {
+                        let mut msg = ConnMessage::default();
+                        if let Err(err)=  msg.decode(&buf[..n]){
+                            return  Err(std::io::Error::new(std::io::ErrorKind::InvalidData,err));
                         }
-                        ticker.tick().await;
+                        match msg.kind {
+                            Kind::Backend => {
+                                return  Ok(socket);
+                            }
+                            _ => {
+                                println!(
+                                    "recv msg {} {} {}",
+                                    msg.kind,
+                                    msg.raddr.to_string(),
+                                    msg.fqdn
+                                );
+                            }
+                        }
+                    }
+                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        continue;
+                    }
+                    Err(e) => {
+                        return Err(e);
                     }
                 }
             }
         });
+
+        let socket = task.await??;
+
+        let tx_udp = socket.into_std()?;
+        let rx_udp = tx_udp.try_clone()?;
 
         let mut buf = [0; 1500];
         loop {
@@ -72,7 +95,6 @@ impl Frontend {
             msg.decode(&mut buf[..n])?;
             match msg.kind {
                 Kind::Backend => {
-                    task.abort();
                     break;
                 }
                 _ => {
@@ -96,10 +118,10 @@ impl Frontend {
 
         cb.dangerous().set_certificate_verifier(verifier);
 
-        let tls = s2n_quic_rustls::Client::new(cb);
+        let tls = s2n_quic::provider::tls::rustls::Client::new(cb);
 
         let socket_io = IOBuilder::default()
-            .with_tx_socket(socket)?
+            .with_tx_socket(tx_udp)?
             .with_rx_socket(rx_udp)?
             .build()?;
         let client = Client::builder()
@@ -120,55 +142,8 @@ impl Frontend {
 
         // copy data from stdin and send it to the server
         let mut stdin = tokio::io::stdin();
-        tokio::io::copy(&mut stdin, &mut send_stream).await?;
+        _ = tokio::io::copy(&mut stdin, &mut send_stream).await?;
 
         Ok(())
-    }
-    pub async fn fetch(
-        self,
-        laddr: String,
-        stun_addr: String,
-        fqdn: String,
-    ) -> Result<SocketAddr, Box<dyn Error>> {
-        let socket = UdpSocket::bind(laddr).await?;
-        let msg = StunMessage::new(Kind::Frontend, fqdn);
-        let data = msg.encode()?;
-
-        let mut buf = [0; 1500];
-
-        let data = data.clone();
-        _ = socket.send_to(&data, stun_addr).await?;
-
-        let (n, _) = socket.recv_from(&mut buf).await?;
-
-        let mut msg = ConnMessage::default();
-        _ = msg.decode(&buf[..n])?;
-
-        println!(
-            "recv conn message, fqdn:{} raddr:{}",
-            msg.fqdn,
-            msg.raddr.to_string()
-        );
-        let raddr = msg.raddr.clone();
-        let msg = msg.clone();
-        let mut data = Vec::with_capacity(n + 1);
-        data.push(MessageKind::Conn as u8);
-        data.append(&mut msg.encode()?);
-
-        let mut ticker = tokio::time::interval(Duration::from_secs(2));
-        let mut buf = [0 as u8; 1500];
-        loop {
-            _ = tokio::select! {
-                _= ticker.tick() =>{
-                    _ = socket.send_to(&data, raddr.clone()).await?;
-                },
-                r = socket.recv_from(&mut buf) =>{
-                    let (n, raddr) = r?;
-                    let mut msg = ConnMessage::default();
-                    _ = msg.decode(&buf[..n])?;
-                    return Ok(raddr)
-                }
-            }
-        }
     }
 }
