@@ -85,6 +85,12 @@ impl StunMessage {
     }
 }
 
+impl std::fmt::Display for StunMessage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {}", self.kind.to_string(), self.fqdn)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct ConnMessage {
     pub kind: Kind,
@@ -190,13 +196,55 @@ impl ConnMessage {
         };
         cur += ip_size;
         let mut pb = [0; 2];
-        pb[0] = buf[cur+1];
-        pb[1] = buf[cur+2];
-        cur+=2;
+        pb[0] = buf[cur + 1];
+        pb[1] = buf[cur + 2];
+        cur += 2;
         let port = u16::from_be_bytes(pb);
         self.kind = kind;
         self.raddr = SocketAddr::new(ip, port);
-        self.fqdn = String::from_utf8_lossy(&buf[cur+1..]).to_string();
+        self.fqdn = String::from_utf8_lossy(&buf[cur + 1..]).to_string();
         return Ok(());
+    }
+}
+
+impl std::fmt::Display for ConnMessage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {}",
+            self.kind.to_string(),
+            self.fqdn,
+            self.raddr.to_string()
+        )
+    }
+}
+pub enum Message {
+    Stun(StunMessage),
+    Conn(ConnMessage),
+    Unknown(Vec<u8>),
+}
+
+pub fn decode(buf: &[u8]) -> Message {
+    match MessageKind::from(buf[0]) {
+        MessageKind::Conn => {
+            let mut msg = ConnMessage::default();
+            if let Err(err) = msg.decode(&buf) {
+                print!("decode conn msg error: {}", err);
+                return Message::Unknown(buf.to_vec());
+            }
+            return Message::Conn(msg);
+        }
+        MessageKind::Stun => {
+            let mut msg = ConnMessage::default();
+            if let Err(err) = msg.decode(&buf) {
+                print!("decode stun msg error: {}", err);
+                return Message::Unknown(buf.to_vec());
+            }
+
+            return Message::Conn(msg);
+        }
+        _ => {
+            return Message::Unknown(buf.to_vec());
+        }
     }
 }

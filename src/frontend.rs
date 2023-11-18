@@ -1,3 +1,4 @@
+use crate::message::Message;
 use crate::{endpoint, message};
 use endpoint::Kind;
 use message::{ConnMessage, StunMessage};
@@ -9,10 +10,10 @@ use std::time::Duration;
 use tokio::net::UdpSocket;
 use tokio::task::JoinHandle;
 
-#[cfg(target_family = "unix")]
-pub use crate::tls::s2ntls::insecure_client_tls;
 #[cfg(target_family = "windows")]
 pub use crate::tls::rustls::insecure_client_tls;
+#[cfg(target_family = "unix")]
+pub use crate::tls::s2ntls::insecure_client_tls;
 
 pub struct Frontend {
     fqdn: String,
@@ -39,12 +40,13 @@ impl Frontend {
         let msg = StunMessage::new(Kind::Frontend, fqdn.clone());
         let data = msg.encode()?;
         _ = socket.send_to(&data, stun_addr).await?;
+        println!("send connect msg, wait stun connection info");
 
         let mut buf = [0; 1500];
-
-        let (n, _) = socket.recv_from(&mut buf).await?;
+        let (n, raddr) = socket.recv_from(&mut buf).await?;
         let mut msg = ConnMessage::default();
         _ = msg.decode(&buf[..n])?;
+        println!("recv connect msg {} from {}", msg, raddr);
 
         let target_addr = msg.raddr.clone();
         let fqdn_clone = fqdn.clone();
@@ -57,29 +59,27 @@ impl Frontend {
                 _ = socket.send_to(&data, target_addr).await?;
                 tokio::time::sleep(Duration::from_secs(2)).await;
                 match socket.try_recv_from(&mut buf) {
-                    Ok((n, _raddr)) => {
-                        let mut msg = ConnMessage::default();
-                        if let Err(err) = msg.decode(&buf[..n]) {
-                            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, err));
-                        }
-                        match msg.kind {
+                    Ok((n, raddr)) => match message::decode(&buf[..n]) {
+                        Message::Conn(msg) => match msg.kind {
                             Kind::Backend => {
                                 return Ok(socket);
                             }
                             _ => {
-                                println!(
-                                    "recv msg {} {} {}",
-                                    msg.kind,
-                                    msg.raddr.to_string(),
-                                    msg.fqdn
-                                );
+                                println!("recv msg {} from {}", msg, raddr,);
                             }
+                        },
+                        Message::Stun(msg) => {
+                            println!("recv unexpected stun msg {}", msg);
                         }
-                    }
-                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                        continue;
-                    }
+                        Message::Unknown(data) => {
+                            println!("recv unknown msg {:?}", data);
+                        }
+                    },
                     Err(e) => {
+                        if e.kind() as u8 == std::io::ErrorKind::WouldBlock as u8 {
+                            continue;
+                        }
+                        println!("recv msg error {}", e.kind());
                         return Err(e);
                     }
                 }

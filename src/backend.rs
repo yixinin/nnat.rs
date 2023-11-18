@@ -4,10 +4,9 @@ use std::error::Error;
 use std::path::Path;
 use std::time::Duration;
 use tokio::net::UdpSocket;
-use tokio::time;
 
 use crate::endpoint::Kind;
-use crate::message::{ConnMessage, MessageKind, StunMessage};
+use crate::message::{self, ConnMessage, Message, StunMessage};
 
 pub struct Backend {
     fqdn: String,
@@ -79,50 +78,43 @@ impl Backend {
         let stun_addr = stun_addr;
         let fqdn = fqdn;
 
-        let mut ticker = time::interval(Duration::from_secs(10));
         let msg = StunMessage::new(Kind::Backend, fqdn);
         let data = msg.encode()?;
         let mut buf = [0; 1500];
+        let mut mark = 1;
         loop {
-            _ = tokio::select! {
-                 _= ticker.tick() => {
-                    let data = data.clone();
-                    _ = socket.send_to(&data, stun_addr.clone()).await?;
-                },
-                r = socket.recv_from(&mut buf)=>{
-                    let (n, raddr)= r?;
-                    let kind = MessageKind::from(buf[0]);
-                    match kind {
-                        MessageKind::Stun => {
-                            let mut msg = StunMessage::default();
-                            _ = msg.decode(&buf[..n])?;
-                            println!(
-                                "recv stun message from: {} raddr: {}, fqdn: {}",
-                                msg.kind.to_string(),
-                                raddr.to_string(),
-                                msg.fqdn,
-                            );
-                        }
-                        MessageKind::Conn => {
-                            let mut msg = ConnMessage::default();
-                            _ = msg.decode(&buf[..n])?;
-                            println!(
-                                "recv conn message raddr: {}, fqdn: {}",
-                                raddr.to_string(),
-                                msg.fqdn,
-                            );
-                            if msg.raddr.to_string() == raddr.to_string() {
-                                return Ok(socket);
-                            }
-                            let data = msg.encode()?;
-                            _ = socket.send_to(&data, stun_addr.clone()).await?;
-                        }
-                        _ => {
-                            println!("reccv unknown msg");
+            if mark == 1 {
+                let data = data.clone();
+                _ = socket.send_to(&data, stun_addr.clone()).await?;
+            }
+
+            tokio::time::sleep(Duration::from_secs(2)).await;
+
+            if let Ok((n, raddr)) = socket.try_recv_from(&mut buf) {
+                let msg = message::decode(&buf[..n]);
+                match msg {
+                    Message::Stun(msg) => {
+                        println!("recv stun message {} from: {}", msg, raddr.to_string(),);
+                    }
+                    Message::Conn(msg) => {
+                        mark += 1;
+                        let from = msg.kind;
+                        println!("recv conn message {} from {}", msg, raddr.to_string());
+
+                        let target_addr = msg.raddr.clone();
+                        let msg = ConnMessage::new(Kind::Backend, socket.local_addr()?, msg.fqdn);
+                        let data = msg.encode()?;
+                        _ = socket.send_to(&data, target_addr).await?;
+
+                        if from == Kind::Frontend {
+                            return Ok(socket);
                         }
                     }
-                },
-            };
+                    Message::Unknown(data) => {
+                        println!("reccv unknown msg {:?}", data);
+                    }
+                }
+            }
         }
     }
 }
