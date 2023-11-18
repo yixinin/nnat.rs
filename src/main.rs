@@ -4,7 +4,6 @@ pub mod frontend;
 pub mod message;
 pub mod server;
 pub mod tls;
-
 use clap::Parser;
 
 pub use backend::Backend;

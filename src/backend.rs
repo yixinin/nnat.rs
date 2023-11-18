@@ -33,7 +33,7 @@ impl Backend {
         let tx = socket.into_std()?;
         let rx = tx.try_clone()?;
 
-        let tls = s2n_quic::provider::tls::rustls::Server::builder()
+        let tls = s2n_quic::provider::tls::default::Server::builder()
             .with_certificate(Path::new("quic.crt"), Path::new("quic.key"))?
             .build()?;
         let socket_io = IOBuilder::default()

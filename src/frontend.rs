@@ -1,15 +1,18 @@
-use crate::tls::NoCertVerifier;
 use crate::{endpoint, message};
 use endpoint::Kind;
 use message::{ConnMessage, StunMessage};
-use rustls::client::ClientConfig;
 use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use s2n_quic::{client::Connect, Client};
 use std::error::Error;
-use std::sync::Arc;
+
 use std::time::Duration;
 use tokio::net::UdpSocket;
 use tokio::task::JoinHandle;
+
+#[cfg(target_family = "unix")]
+pub use crate::tls::s2ntls::insecure_client_tls;
+#[cfg(target_family = "windows")]
+pub use crate::tls::rustls::insecure_client_tls;
 
 pub struct Frontend {
     fqdn: String,
@@ -56,12 +59,12 @@ impl Frontend {
                 match socket.try_recv_from(&mut buf) {
                     Ok((n, _raddr)) => {
                         let mut msg = ConnMessage::default();
-                        if let Err(err)=  msg.decode(&buf[..n]){
-                            return  Err(std::io::Error::new(std::io::ErrorKind::InvalidData,err));
+                        if let Err(err) = msg.decode(&buf[..n]) {
+                            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, err));
                         }
                         match msg.kind {
                             Kind::Backend => {
-                                return  Ok(socket);
+                                return Ok(socket);
                             }
                             _ => {
                                 println!(
@@ -108,22 +111,11 @@ impl Frontend {
             }
         }
 
-        let verifier = Arc::new(NoCertVerifier {});
-        let mut cb = ClientConfig::builder()
-            .with_safe_default_cipher_suites()
-            .with_safe_default_kx_groups()
-            .with_safe_default_protocol_versions()?
-            .with_custom_certificate_verifier(verifier.clone())
-            .with_no_client_auth();
-
-        cb.dangerous().set_certificate_verifier(verifier);
-
-        let tls = s2n_quic::provider::tls::rustls::Client::new(cb);
-
         let socket_io = IOBuilder::default()
             .with_tx_socket(tx_udp)?
             .with_rx_socket(rx_udp)?
             .build()?;
+        let tls = insecure_client_tls("quic.crt")?;
         let client = Client::builder()
             .with_tls(tls)?
             .with_io(socket_io)?

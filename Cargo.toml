@@ -5,13 +5,8 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
-s2n-quic = { version = "^1.31.0", default-features = false, features = [
-    "provider-address-token-default",
-    "provider-tls-rustls",
-] }
-
+s2n-quic = { path = "../s2n-quic/quic/s2n-quic" }
 clap = { version = "^4", features = ["derive"] }
 s2n-quic-rustls = { version = "^0.31.0" }
-# rustls = { version = "^0.21", features = ["quic"] }
 rustls = { version = "^0.21", features = ["quic", "dangerous_configuration"] }
 tokio = { version = "^1", features = ["full"] }
