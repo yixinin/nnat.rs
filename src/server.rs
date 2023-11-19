@@ -40,6 +40,8 @@ impl StunServer {
                     Kind::Unknown => {}
                     Kind::Stun => {}
                     Kind::Frontend => {
+                        let fqdn = msg.fqdn.clone();
+                        println!("recv from fontend: {}, fqdn: {}", raddr.to_string(), fqdn);
                         let mut rm_keys = Vec::new();
                         let fqdn = msg.fqdn.clone();
                         if let Some(bs) = self.backends.get_mut(fqdn.clone().as_str()) {

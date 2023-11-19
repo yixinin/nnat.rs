@@ -16,9 +16,9 @@ use std::error::Error;
 pub struct Cli {
     #[arg(long)]
     pub debug: bool,
-    #[arg(long)]
+    #[arg(short)]
     pub b: bool,
-    #[arg(long)]
+    #[arg(short)]
     pub f: bool,
     #[arg(long)]
     pub stun: bool,

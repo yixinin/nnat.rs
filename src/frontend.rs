@@ -57,6 +57,7 @@ impl Frontend {
             let mut buf = [0; 1500];
             loop {
                 _ = socket.send_to(&data, target_addr).await?;
+                println!("send connect msg to {}", target_addr.to_string());
                 tokio::time::sleep(Duration::from_secs(2)).await;
                 match socket.try_recv_from(&mut buf) {
                     Ok((n, raddr)) => match message::decode(&buf[..n]) {
@@ -88,28 +89,10 @@ impl Frontend {
 
         let socket = task.await??;
 
+        println!("start quic conn");
+
         let tx_udp = socket.into_std()?;
         let rx_udp = tx_udp.try_clone()?;
-
-        let mut buf = [0; 1500];
-        loop {
-            let (n, _) = rx_udp.recv_from(&mut buf)?;
-            let mut msg = ConnMessage::default();
-            msg.decode(&mut buf[..n])?;
-            match msg.kind {
-                Kind::Backend => {
-                    break;
-                }
-                _ => {
-                    println!(
-                        "recv msg {} {} {}",
-                        msg.kind,
-                        msg.raddr.to_string(),
-                        msg.fqdn
-                    );
-                }
-            }
-        }
 
         let socket_io = IOBuilder::default()
             .with_tx_socket(tx_udp)?

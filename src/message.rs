@@ -87,7 +87,7 @@ impl StunMessage {
 
 impl std::fmt::Display for StunMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}", self.kind.to_string(), self.fqdn)
+        write!(f, "{{ {} {} }}", self.kind.to_string(), self.fqdn)
     }
 }
 
@@ -211,7 +211,7 @@ impl std::fmt::Display for ConnMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{} {} {}",
+            "{{{} {} {} }}",
             self.kind.to_string(),
             self.fqdn,
             self.raddr.to_string()
@@ -235,13 +235,13 @@ pub fn decode(buf: &[u8]) -> Message {
             return Message::Conn(msg);
         }
         MessageKind::Stun => {
-            let mut msg = ConnMessage::default();
+            let mut msg = StunMessage::default();
             if let Err(err) = msg.decode(&buf) {
-                print!("decode stun msg error: {}", err);
+                println!("decode stun msg error: {}", err);
                 return Message::Unknown(buf.to_vec());
             }
 
-            return Message::Conn(msg);
+            return Message::Stun(msg);
         }
         _ => {
             return Message::Unknown(buf.to_vec());
