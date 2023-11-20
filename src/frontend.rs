@@ -2,12 +2,13 @@ use crate::message::Message;
 use crate::{endpoint, message};
 use endpoint::Kind;
 use message::{ConnMessage, StunMessage};
+use s2n_quic::connection::Connection;
 use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use s2n_quic::{client::Connect, Client};
 use std::error::Error;
 
 use std::time::Duration;
-use tokio::net::UdpSocket;
+use tokio::net::{TcpListener, TcpStream, UdpSocket};
 use tokio::task::JoinHandle;
 
 #[cfg(target_family = "windows")]
@@ -28,6 +29,34 @@ impl Frontend {
             laddr: laddr.to_string(),
             stun_addr: stun_addr.to_string(),
         }
+    }
+
+    pub async fn listen(self, quic_conn: &mut Connection) -> Result<(), Box<dyn Error>> {
+        let lis = TcpListener::bind(self.laddr).await?;
+        loop {
+            let (tcp_stream, _raddr) = lis.accept().await?;
+            Self::tunnel_tx(tcp_stream, quic_conn).await?;
+        }
+    }
+
+    pub async fn tunnel_tx(
+        tcp_stream: TcpStream,
+        quic_conn: &mut Connection,
+    ) -> Result<(), Box<dyn Error>> {
+        let (mut rx_tcp, mut tx_tcp) = tcp_stream.into_split();
+        let stream = quic_conn.open_bidirectional_stream().await?;
+
+        let (mut rx_quic, mut tx_quic) = stream.split();
+
+        // let (mut rx_tcp, mut tx_tcp) = tcp_stream.split();
+        let t1 = tokio::spawn(async move {
+            _ = tokio::io::copy(&mut rx_quic, &mut tx_tcp).await;
+        });
+
+        _ = tokio::io::copy(&mut rx_tcp, &mut tx_quic).await;
+
+        _ = t1.await;
+        Ok(())
     }
 
     pub async fn run(self) -> Result<(), Box<dyn Error>> {
@@ -107,18 +136,8 @@ impl Frontend {
         let connect = Connect::new(target_addr).with_server_name(fqdn.clone().as_str());
         let mut connection = client.connect(connect).await?;
         connection.keep_alive(true)?;
-        let stream = connection.open_bidirectional_stream().await?;
-        let (mut receive_stream, mut send_stream) = stream.split();
 
-        tokio::spawn(async move {
-            let mut stdout = tokio::io::stdout();
-            let _ = tokio::io::copy(&mut receive_stream, &mut stdout).await;
-        });
-
-        // copy data from stdin and send it to the server
-        let mut stdin = tokio::io::stdin();
-        _ = tokio::io::copy(&mut stdin, &mut send_stream).await?;
-
+        self.listen(&mut connection).await?;
         Ok(())
     }
 }

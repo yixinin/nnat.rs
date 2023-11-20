@@ -60,13 +60,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
             s.run()?;
         }
         CliKind::Backend => {
-            let be = Backend::new(fqdn, "0.0.0.0:3441", stun_addr);
+            let laddr = "0.0.0.0:3441".parse().unwrap();
+            let be = Backend::new(fqdn, laddr, stun_addr);
             be.run().await?;
         }
-        CliKind::Frontend => {
+        CliKind::Frontend => loop {
             let fb = Frontend::new(fqdn, "0.0.0.0:3442", stun_addr);
-            fb.run().await?;
-        }
+            match fb.run().await {
+                Ok(_) => return Ok(()),
+                Err(err) => {
+                    println!("proxy error: {}", err)
+                }
+            }
+        },
         CliKind::Unknown => {
             println!("nothing run")
         }
