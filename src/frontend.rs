@@ -1,11 +1,14 @@
+use crate::http::{self, HttpMethod};
 use crate::message::Message;
 use crate::{endpoint, message};
+
 use endpoint::Kind;
 use message::{ConnMessage, StunMessage};
 use s2n_quic::connection::Connection;
 use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use s2n_quic::{client::Connect, Client};
 use std::error::Error;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 
 use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
@@ -44,6 +47,26 @@ impl Frontend {
         quic_conn: &mut Connection,
     ) -> Result<(), Box<dyn Error>> {
         let (mut rx_tcp, mut tx_tcp) = tcp_stream.into_split();
+
+        let mut reader = tokio::io::BufReader::new(rx_tcp);
+        let mut buf = Vec::new();
+        let n = reader.read_until(b' ', &mut buf).await?;
+        match http::new(&buf[..n]) {
+            HttpMethod::MethodConnect => {}
+            HttpMethod::MethodUnknown => {}
+            _ => {
+                // read headers
+                let mut lines = Vec::new();
+                let mut line_cur = reader.lines();
+                while let Some(line) = line_cur.next_line().await? {
+                    if line.is_empty() {
+                        lines.push(line);
+                        break;
+                    }
+                    lines.push(line);
+                }
+            }
+        }
         let stream = quic_conn.open_bidirectional_stream().await?;
 
         let (mut rx_quic, mut tx_quic) = stream.split();

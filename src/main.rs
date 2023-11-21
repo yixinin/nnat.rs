@@ -1,6 +1,7 @@
 pub mod backend;
 pub mod endpoint;
 pub mod frontend;
+pub mod http;
 pub mod message;
 pub mod server;
 pub mod tls;
