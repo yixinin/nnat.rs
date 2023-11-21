@@ -3,6 +3,7 @@ use crate::message::Message;
 use crate::{endpoint, message};
 
 use endpoint::Kind;
+use hyper::server::conn::http1;
 use message::{ConnMessage, StunMessage};
 use s2n_quic::connection::Connection;
 use s2n_quic::provider::io::tokio::Builder as IOBuilder;
@@ -46,6 +47,8 @@ impl Frontend {
         tcp_stream: TcpStream,
         quic_conn: &mut Connection,
     ) -> Result<(), Box<dyn Error>> {
+        let http= hyper::server::conn::http1::Builder::new();
+        http.serve_connection(tcp_stream, f);
         let (mut rx_tcp, mut tx_tcp) = tcp_stream.into_split();
 
         let mut reader = tokio::io::BufReader::new(rx_tcp);
@@ -67,7 +70,12 @@ impl Frontend {
                 }
             }
         }
-        let stream = quic_conn.open_bidirectional_stream().await?;
+      
+      
+       
+        
+
+        let stream: s2n_quic::stream::BidirectionalStream = quic_conn.open_bidirectional_stream().await?;
 
         let (mut rx_quic, mut tx_quic) = stream.split();
 

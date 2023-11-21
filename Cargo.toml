@@ -10,3 +10,4 @@ clap = { version = "^4", features = ["derive"] }
 s2n-quic-rustls = { version = "^0.31.0" }
 rustls = { version = "^0.21", features = ["quic", "dangerous_configuration"] }
 tokio = { version = "^1", features = ["full"] }
+hyper = { version = "^1", features = ["full"]}
