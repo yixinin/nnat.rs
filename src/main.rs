@@ -1,9 +1,9 @@
 pub mod backend;
 pub mod endpoint;
+pub mod error;
 pub mod frontend;
 pub mod handler;
 pub mod http;
-pub mod layer;
 pub mod message;
 pub mod proxy;
 pub mod server;
