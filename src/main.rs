@@ -9,6 +9,7 @@ pub mod proxy;
 pub mod server;
 pub mod tls;
 pub mod upstream;
+pub mod h3quic;
 use clap::Parser;
 
 pub use backend::Backend;

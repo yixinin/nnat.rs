@@ -13,3 +13,9 @@ s2n-quic-rustls = { version = "^0.31.0" }
 rustls = { version = "^0.21", features = ["quic", "dangerous_configuration"] }
 tokio = { version = "^1", features = ["full"] }
 hyper = { version = "^1", features = ["full"] }
+h2 = "^0.4.0"
+h3 = '^0.0.3'
+bytes = "^1"
+futures = "^0.3.29"
+tokio-util="^0.7.10"
+s2n-quic-core="^0.31.0"
