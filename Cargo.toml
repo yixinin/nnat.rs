@@ -17,5 +17,6 @@ h2 = "^0.4.0"
 h3 = '^0.0.3'
 bytes = "^1"
 futures = "^0.3.29"
-tokio-util="^0.7.10"
-s2n-quic-core="^0.31.0"
+tokio-util = "^0.7.10"
+s2n-quic-core = "^0.31.0"
+s2n-quic-h3 = { path = "../s2n-quic/quic/s2n-quic-h3" }

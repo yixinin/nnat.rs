@@ -72,4 +72,11 @@ pub enum NnatError {
 
     #[error(transparent)]
     Other(#[from] anyhow::Error),
+    StdError(#[from] std::error::Error)
+}
+
+impl From<std::error::Error> for NnatError {
+    fn from(value: std::error::Error) -> Self {
+        NnatError::Other(())
+    }
 }

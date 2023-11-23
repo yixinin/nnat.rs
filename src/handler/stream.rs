@@ -40,7 +40,7 @@ impl StreamHandler {
             .start()?;
 
         println!("quic server started, accept msg ...");
-        while let Some(mut connection) = server.accept().await {
+        while let Some(mut connection) = server.accept().await {  
             tokio::spawn(async move {
                 while let Some(stream) = connection.accept_bidirectional_stream().await? {
                     let (mut rx, mut tx) = stream.split();

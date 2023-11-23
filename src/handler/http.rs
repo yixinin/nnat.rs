@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use super::Acceptor;
 use crate::error::Result;
-use tokio::net::TcpListener;
-
+use h2;
+use h3;
 use hyper::service::service_fn;
 use hyper::{
     body::{Bytes, Incoming},
@@ -12,13 +12,12 @@ use hyper::{
 };
 use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use s2n_quic::stream::BidirectionalStream;
-use s2n_quic::Server;
-use std::error::Error; 
+use s2n_quic::Server; 
+use std::error::Error;
 use std::path::Path;
 use std::time::Duration;
+use tokio::net::TcpListener;
 use tokio::net::{TcpSocket, UdpSocket};
-use h2;
-use h3;
 
 pub struct HttpHandler {
     laddr: SocketAddr,
@@ -64,11 +63,12 @@ impl HttpHandler {
                         server_name.clone(),
                     )
                 }),
-            )
+            );
         }
+        Ok(())
     }
 
-    pub async fn serve_quic(self, server_name: String) -> Result<()> { 
+    pub async fn serve_quic(self, server_name: String) -> Result<()> {
         let socket = UdpSocket::bind(self.laddr).await?;
         let tx = socket.into_std()?;
         let rx = tx.try_clone()?;
@@ -87,14 +87,19 @@ impl HttpHandler {
             .start()?;
 
         println!("quic server started, accept msg ...");
-        while let Some(mut connection) = server.accept().await {
-          
-           if let Ok(b) = h3::server::Connection::new(connection).await{
-                
-           }
-            
+        while let Some(mut conn) = server.accept().await {
+            let mut builder = h3::server::builder()
+                .enable_datagram(true)
+                .enable_connect(true)
+                .enable_webtransport(true);
+            let conn = s2n_quic_h3::Connection::new(conn);
+            while let Ok(b) = builder.build(conn).await {
+                if let Ok(Some((req, stream))) = b.accept().await {
+
+                }
+            }
         }
-         
+        Ok(())
     }
 }
 

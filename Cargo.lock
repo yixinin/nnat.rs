@@ -795,6 +795,7 @@ dependencies = [
  "rustls",
  "s2n-quic",
  "s2n-quic-core 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "s2n-quic-h3",
  "s2n-quic-rustls 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror",
  "tokio",
@@ -1269,6 +1270,17 @@ dependencies = [
  "s2n-codec 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "s2n-quic-core 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "zeroize",
+]
+
+[[package]]
+name = "s2n-quic-h3"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "futures",
+ "h3",
+ "s2n-quic",
+ "s2n-quic-core 0.31.0",
 ]
 
 [[package]]
