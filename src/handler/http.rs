@@ -69,6 +69,29 @@ impl HttpHandler {
         Ok(())
     }
 
+    pub async fn serve_tcp_http2(self, server_name: String) -> Result<()> {
+        let b = h2::server::Builder::new();
+
+        let lis = TcpListener::bind(self.laddr).await?;
+        while let Ok((stream, raddr)) = lis.accept().await {
+            let x = b.handshake(stream);
+            b.serve_connection(
+                stream,
+                service_fn(move |req: Request<Incoming>| {
+                    Self::service(
+                        self.handler.clone(),
+                        req,
+                        raddr,
+                        self.laddr,
+                        self.tls_on,
+                        server_name.clone(),
+                    )
+                }),
+            );
+        }
+        Ok(())
+    }
+
     pub async fn serve_quic(self, server_name: String) -> Result<()> {
         let socket = UdpSocket::bind(self.laddr).await?;
         let tx = socket.into_std()?;
