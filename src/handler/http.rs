@@ -5,6 +5,7 @@ use super::Acceptor;
 use crate::error::Result;
 use h2;
 use h3;
+use h3::server::RequestStream;
 use hyper::service::service_fn;
 use hyper::{
     body::{Bytes, Incoming},
@@ -12,7 +13,7 @@ use hyper::{
 };
 use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use s2n_quic::stream::BidirectionalStream;
-use s2n_quic::Server; 
+use s2n_quic::Server;
 use std::error::Error;
 use std::path::Path;
 use std::time::Duration;
@@ -88,15 +89,16 @@ impl HttpHandler {
 
         println!("quic server started, accept msg ...");
         while let Some(mut conn) = server.accept().await {
-            let mut builder = h3::server::builder()
-                .enable_datagram(true)
-                .enable_connect(true)
-                .enable_webtransport(true);
+            // let mut builder = h3::server::builder()
+            //     .enable_datagram(true)
+            //     .enable_connect(true)
+            //     .enable_webtransport(true);
             let conn = s2n_quic_h3::Connection::new(conn);
-            while let Ok(b) = builder.build(conn).await {
-                if let Ok(Some((req, stream))) = b.accept().await {
+            let mut b: h3::server::Connection<s2n_quic_h3::Connection, bytes::Bytes> =
+                h3::server::Connection::new(conn).await.unwrap();
 
-                }
+            if let Ok(Some((req, stream))) = b.accept().await {
+                println!("new request: {:#?}", req);
             }
         }
         Ok(())

@@ -6,15 +6,14 @@ pub type Result<T> = std::result::Result<T, NnatError>;
 /// Describes things that can go wrong in the Rpxy
 #[derive(Debug, Error)]
 pub enum NnatError {
-    #[error("Proxy build error: {0}")]
-    ProxyBuild(#[from] crate::proxy::ProxyBuilderError),
+    // #[error("Proxy build error: {0}")]
+    // ProxyBuild(#[from] crate::proxy::ProxyBuilderError),
 
-    #[error("Backend build error: {0}")]
-    BackendBuild(#[from] crate::backend::BackendBuilderError),
+    // #[error("Backend build error: {0}")]
+    // BackendBuild(#[from] crate::backend::BackendBuilderError),
 
-    #[error("MessageHandler build error: {0}")]
-    HandlerBuild(#[from] crate::handler::HttpMessageHandlerBuilderError),
-
+    // #[error("MessageHandler build error: {0}")]
+    // HandlerBuild(#[from] crate::handler::HttpMessageHandlerBuilderError),
     #[error("Config builder error: {0}")]
     ConfigBuild(&'static str),
 
@@ -72,11 +71,22 @@ pub enum NnatError {
 
     #[error(transparent)]
     Other(#[from] anyhow::Error),
-    StdError(#[from] std::error::Error)
+
+    #[error("std error")]
+    StdError(#[from] Box<dyn std::error::Error>),
+
+    #[error("s2n quic start error")]
+    StartError(#[from] s2n_quic::provider::StartError),
+
+    #[error("tls error")]
+    TlsError(#[from] s2n_quic::provider::tls::default::error::Error),
+
+    #[error("infallible")]
+    Infallible(#[from] std::convert::Infallible),
 }
 
-impl From<std::error::Error> for NnatError {
-    fn from(value: std::error::Error) -> Self {
-        NnatError::Other(())
-    }
-}
+// impl From<std::error::Error> for NnatError {
+//     fn from(value: std::error::Error) -> Self {
+//         NnatError::Other(())
+//     }
+// }

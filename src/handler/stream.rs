@@ -1,3 +1,4 @@
+use anyhow::Ok;
 use s2n_quic::provider::io::tokio::Builder as IOBuilder;
 use s2n_quic::stream::BidirectionalStream;
 use s2n_quic::Server;
@@ -40,12 +41,13 @@ impl StreamHandler {
             .start()?;
 
         println!("quic server started, accept msg ...");
-        while let Some(mut connection) = server.accept().await {  
+        while let Some(mut connection) = server.accept().await {
             tokio::spawn(async move {
                 while let Some(stream) = connection.accept_bidirectional_stream().await? {
                     let (mut rx, mut tx) = stream.split();
                 }
             })
         }
+        Ok(())
     }
 }
