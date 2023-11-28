@@ -86,6 +86,9 @@ pub enum NnatError {
 
     #[error("pool error")]
     IoError(#[from] r2d2::Error),
+
+    #[error("h2 error")]
+    H2Error(#[from] h2::Error),
 }
 
 // impl From<std::error::Error> for NnatError {
