@@ -1,21 +1,30 @@
 use std::net::SocketAddr;
 
-use futures::TryFutureExt;
 use tokio::net::TcpStream;
 
 use r2d2;
 
 use crate::error::Result;
-pub struct TcpsStream(SocketAddr);
 
-impl r2d2::ManageConnection for TcpsStream {
+use super::Forwarder;
+pub struct TcpConnectionManager {
+    idx: usize,
+    addrs: Vec<SocketAddr>,
+}
+
+impl TcpConnectionManager {
+    pub fn new(addrs: Vec<SocketAddr>) -> TcpConnectionManager {
+        TcpConnectionManager { idx: 0, addrs }
+    }
+}
+
+impl r2d2::ManageConnection for TcpConnectionManager {
     fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
-        let stream = TcpStream::connect(self.0.clone());
-
-        let stream = stream.and_then(|stream| async move {
-            return stream;
-        });
-        Ok(stream as Self::Connection);
+        let addr = self.addrs[self.idx % self.addrs.len()];
+        let handle = tokio::runtime::Handle::current();
+        let stream = handle.block_on(TcpStream::connect(addr.clone()))?;
+        self.idx += 1;
+        Ok(stream)
     }
 
     fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {
@@ -26,29 +35,29 @@ impl r2d2::ManageConnection for TcpsStream {
         false
     }
 
-    type Connection = tokio::net::TcpStream;
+    type Connection = TcpStream;
 
     type Error = std::io::Error;
 }
 
 pub struct TcpUpstream {
-    addr: SocketAddr,
-    conn_pool: r2d2::Pool<TcpsStream>,
+    rx: tokio::net::tcp::OwnedReadHalf,
+    tx: tokio::net::tcp::OwnedWriteHalf,
+    conn_pool: r2d2::Pool<TcpConnectionManager>,
 }
 
 impl TcpUpstream {
-    pub async fn new(addr: SocketAddr) -> Result<Self> {
-        let manager = TcpsStream(addr.clone());
-
-        let upstream = TcpUpstream {
-            addr: addr,
-            conn_pool: r2d2::Pool::new(manager)?,
-        };
+    pub async fn new(addrs: Vec<SocketAddr>) -> Result<Self> {
+        let manager = TcpConnectionManager::new(addrs);
+        let pool = r2d2::Pool::builder().max_size(10).build(manager)?;
+        let upstream = TcpUpstream { conn_pool: pool };
         Ok(upstream)
     }
+}
 
-    pub async fn forward(&mut self, data: &[u8]) -> Result<usize> {
-        let stream = self.conn_pool.get()?;
-        return stream.try_write(data)?;
+impl Forwarder for TcpUpstream {
+    fn forward(&mut self, data: &[u8]) -> Result<usize> {
+        let n = self.tx.try_write(data)?;
+        Ok(n)
     }
 }

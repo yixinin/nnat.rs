@@ -83,6 +83,9 @@ pub enum NnatError {
 
     #[error("infallible")]
     Infallible(#[from] std::convert::Infallible),
+
+    #[error("pool error")]
+    IoError(#[from] r2d2::Error),
 }
 
 // impl From<std::error::Error> for NnatError {
