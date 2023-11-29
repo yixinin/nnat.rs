@@ -22,4 +22,5 @@ s2n-quic-core = "^0.31.0"
 s2n-quic-h3 = { path = "../s2n-quic/quic/s2n-quic-h3" }
 r2d2 = "^0.8.10"
 pin-project-lite = "^0.2.4"
-http = "^1"
+http = "1"
+http-body-util = "^0.1.0"
