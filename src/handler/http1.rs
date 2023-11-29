@@ -12,7 +12,7 @@ use hyper::{Method, Request, Response};
 
 pub struct Http1Handler {
     listener: TcpListener,
-    upstream: upstream::http1::Http1Upstream<Incoming>,
+    upstream: upstream::http1::Http1Upstream,
 }
 
 impl Http1Handler {

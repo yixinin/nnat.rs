@@ -1,5 +1,9 @@
+use std::net::SocketAddr;
+
+use super::http::HttpForward;
 use bytes::Bytes;
 use http::{HeaderMap, Request};
+use http_body_util::Full;
 use hyper::body::{Body, Incoming};
 use hyper::client::conn::http1::{Connection, SendRequest};
 use tokio::net::TcpStream;
@@ -11,6 +15,7 @@ pub struct Http1Upstream<B>
 where
     B: Body + 'static,
 {
+    raddr: String,
     sender: SendRequest<B>,
     conn: Connection<TokioIo<TcpStream>, B>,
 }
@@ -19,22 +24,34 @@ impl<B> Http1Upstream<B>
 where
     B: Body + 'static,
 {
-    pub fn new(sender: SendRequest<B>, conn: Connection<TokioIo<TcpStream>, B>) -> Self {
-        Http1Upstream {
+    pub async fn new(raddr: String) -> Result<Self> {
+        let addr: SocketAddr = raddr.parse().unwrap();
+        let stream = TcpStream::connect(addr).await;
+        let io = TokioIo::new(stream);
+        let (sender, conn) = hyper::client::conn::http1::handshake(io).await?;
+        let s = Http1Upstream {
+            raddr: raddr,
             sender: sender,
             conn: conn,
-        }
+        };
+        Ok(s)
     }
-
-    pub fn forward(&self, req: Request<()>, headers: HeaderMap, body: B) -> Result<()> {
-        let mut b = Request::builder().uri(req.uri()); //.body(body)?;
-        for (k, v) in headers {
-            if let Some(name) = k {
-                b = b.header(name, v);
-            }
-        }
-        let req = b.body(body)?;
-        self.sender.send_request(req);
+}
+impl<R, W, B> HttpForward<R, W> for Http1Upstream<B>
+where
+    R: std::io::Read,
+    W: std::io::Write,
+    B: Body + 'static,
+{
+    fn forward(&self, req: Request<()>, body: R, writer: W) -> Result<()> {
+        let buf = Vec::new();
+        let n = body.read_to_end(&mut buf)?;
+        let mut req = Request::builder()
+            .uri(req.uri())
+            .body(Full::new(Bytes::from(buf.as_slice())))?;
+        let handle = tokio::runtime::Handle::current();
+        let resp = handle.block_on(self.sender.send_request(req))?;
+        std::io::copy(&mut resp, &mut writer);
         Ok(())
     }
 }
