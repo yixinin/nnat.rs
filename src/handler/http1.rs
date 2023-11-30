@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use futures::Future;
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
 use hyper::body::{Body, Incoming};
 use hyper::service::service_fn;
@@ -11,7 +12,7 @@ use crate::upstream::http::HttpForward;
 use crate::{error::Result, upstream};
 use hyper::{Method, Request, Response};
 
-use crate::TcpStreamIo;
+use crate::{error, TcpStreamIo};
 
 pub struct Http1Handler {
     listener: TcpListener,
@@ -40,7 +41,7 @@ impl Http1Handler {
                         service_fn(|req: Request<hyper::body::Incoming>| async move {
                             // self.Ok(Response::new(Full::<Bytes>::from("Hello World")))
 
-                            self.upstream.forward(req.into(), req.into_body())
+                            self.upstream.forward(req.into(), req.into_body(), writer)
                         }),
                     )
                     .with_upgrades()
@@ -63,4 +64,14 @@ impl Http1Handler {
         self.upstream.forward(req, headers, body);
         Ok(())
     }
+}
+
+pub struct Http1Service {}
+
+impl hyper::service::Service<Request<Incoming>> for Http1Service {
+    type Response = Response<Bytes>;
+    type Error = hyper::Error;
+    type Future = Future<Output = Result<Self::Response, Box<dyn Self::Error>>>;
+
+    fn call(&self, req: Request<Incoming>) -> Self::Future {}
 }
