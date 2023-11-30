@@ -41,7 +41,8 @@ impl Http1Handler {
                         service_fn(|req: Request<hyper::body::Incoming>| async move {
                             // self.Ok(Response::new(Full::<Bytes>::from("Hello World")))
 
-                            self.upstream.forward(req.into(), req.into_body(), writer)
+                            self.upstream.forward(req.into(), req.into_body(), writer);
+                            Ok(Response::new(Full::<Bytes>::from("Hello World")))
                         }),
                     )
                     .with_upgrades()
@@ -64,14 +65,4 @@ impl Http1Handler {
         self.upstream.forward(req, headers, body);
         Ok(())
     }
-}
-
-pub struct Http1Service {}
-
-impl hyper::service::Service<Request<Incoming>> for Http1Service {
-    type Response = Response<Bytes>;
-    type Error = hyper::Error;
-    type Future = Future<Output = Result<Self::Response, Box<dyn Self::Error>>>;
-
-    fn call(&self, req: Request<Incoming>) -> Self::Future {}
 }
