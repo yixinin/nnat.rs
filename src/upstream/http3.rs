@@ -1,4 +1,6 @@
+use super::http::HttpForward;
 use crate::error::Result;
+
 use bytes::Bytes;
 use h3::client::{Connection, SendRequest};
 use http::Request;
@@ -18,9 +20,19 @@ impl Http3Upstream {
             conn: conn,
         }
     }
+}
 
-    pub fn forward(&self, req: Request<()>) -> Result<()> {
-        self.sender.send_request(req);
+impl<R, W> HttpForward<R, W> for Http3Upstream
+where
+    R: std::io::Read,
+    W: std::io::Write,
+{
+    fn forward(&self, req: Request<()>, mut body: R, mut writer: W) -> Result<()> {
+        let (mut stream) = self.sender.send_request(req).await?;
+        let (mut tx, mut rx) = stream.split();
+
+        std::io::copy(&mut body, &mut tx);
+        std::io::copy(&mut rx, &mut writer);
         Ok(())
     }
 }

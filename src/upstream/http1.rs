@@ -9,7 +9,7 @@ use hyper::client::conn::http1::{Connection, SendRequest};
 use tokio::net::TcpStream;
 
 use crate::error::Result;
-use crate::tokioio::TokioIo;
+use crate::TcpStreamIo;
 
 pub struct Http1Upstream<B>
 where
@@ -17,7 +17,7 @@ where
 {
     raddr: String,
     sender: SendRequest<B>,
-    conn: Connection<TokioIo<TcpStream>, B>,
+    conn: Connection<TcpStreamIo, B>,
 }
 
 impl<B> Http1Upstream<B>
@@ -26,8 +26,8 @@ where
 {
     pub async fn new(raddr: String) -> Result<Self> {
         let addr: SocketAddr = raddr.parse().unwrap();
-        let stream = TcpStream::connect(addr).await;
-        let io = TokioIo::new(stream);
+        let stream = TcpStream::connect(addr).await?;
+        let io = TcpStreamIo(stream);
         let (sender, conn) = hyper::client::conn::http1::handshake(io).await?;
         let s = Http1Upstream {
             raddr: raddr,
@@ -43,14 +43,15 @@ where
     W: std::io::Write,
     B: Body + 'static,
 {
-    fn forward(&self, req: Request<()>, body: R, writer: W) -> Result<()> {
-        let buf = Vec::new();
+    fn forward(&self, req: Request<()>, mut body: R, mut writer: W) -> Result<()> {
+        let mut buf = Vec::new();
         let n = body.read_to_end(&mut buf)?;
         let mut req = Request::builder()
             .uri(req.uri())
-            .body(Full::new(Bytes::from(buf.as_slice())))?;
-        let handle = tokio::runtime::Handle::current();
-        let resp = handle.block_on(self.sender.send_request(req))?;
+            .body(Full::new(Bytes::from(buf.as_slice())))?
+            .into()?;
+        let mut resp = futures::executor::block_on(self.sender.send_request(req))?;
+
         std::io::copy(&mut resp, &mut writer);
         Ok(())
     }

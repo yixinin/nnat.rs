@@ -26,19 +26,6 @@ impl Http2Upstream {
         };
         Ok(s)
     }
-
-    pub async fn forward<R>(&self, req: Request<()>, rx: R) -> Result<()>
-    where
-        R: tokio::io::AsyncRead,
-    {
-        let (f, mut stream) = self.sender.send_request(req, false)?;
-
-        std::io::copy(&mut rx, &mut stream);
-        let rx = f.await?;
-        let rx = rx.into_body();
-
-        Ok(())
-    }
 }
 
 impl<R, W> HttpForward<R, W> for Http2Upstream
@@ -46,12 +33,13 @@ where
     R: std::io::Read,
     W: std::io::Write,
 {
-    fn forward(&self, req: Request<()>, body: R, writer: W) -> Request<()> {
+    fn forward(&self, req: Request<()>, body: R, writer: W) -> Result<()> {
         let (f, mut stream) = self.sender.send_request(req, false)?;
         tokio::spawn(async move {
             let rx = f.await?.into_body();
             std::io::copy(&mut rx, &mut writer);
         });
         std::io::copy(&mut body, &mut stream);
+        Ok(())
     }
 }

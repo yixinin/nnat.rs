@@ -1,4 +1,5 @@
 pub mod backend;
+pub mod connection;
 pub mod endpoint;
 pub mod error;
 pub mod frontend;
@@ -6,10 +7,12 @@ pub mod handler;
 pub mod http;
 pub mod message;
 pub mod server;
+pub mod tcpio;
 pub mod tls;
 pub mod tokioio;
 pub mod upstream;
 use clap::Parser;
+pub use tcpio::TcpStreamIo;
 
 pub use backend::Backend;
 pub use frontend::Frontend;

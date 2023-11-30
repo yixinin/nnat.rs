@@ -8,7 +8,7 @@ where
     R: std::io::Read,
     W: std::io::Write,
 {
-    fn forward(&self, req: Request<()>, body: R, writer: W) -> Request<()>;
+    fn forward(&self, req: Request<()>, body: R, writer: W) -> Result<()>;
 }
 pub trait StreamForward<R, W>
 where

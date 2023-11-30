@@ -7,12 +7,15 @@ use tokio::net::TcpListener;
 
 use crate::tokioio::TokioIo;
 
+use crate::upstream::http::HttpForward;
 use crate::{error::Result, upstream};
 use hyper::{Method, Request, Response};
 
+use crate::TcpStreamIo;
+
 pub struct Http1Handler {
     listener: TcpListener,
-    upstream: upstream::http1::Http1Upstream,
+    upstream: upstream::http1::Http1Upstream<Incoming>,
 }
 
 impl Http1Handler {
@@ -26,7 +29,7 @@ impl Http1Handler {
     pub async fn serve(&self) -> Result<()> {
         loop {
             let (stream, _) = self.listener.accept().await?;
-            let io = TokioIo::new(stream);
+            let io = TcpStreamIo(stream);
 
             tokio::task::spawn(async move {
                 if let Err(err) = hyper::server::conn::http1::Builder::new()
@@ -37,11 +40,7 @@ impl Http1Handler {
                         service_fn(|req: Request<hyper::body::Incoming>| async move {
                             // self.Ok(Response::new(Full::<Bytes>::from("Hello World")))
 
-                            self.upstream.forward(
-                                req.into(),
-                                req.headers().to_owned(),
-                                req.into_body(),
-                            )
+                            self.upstream.forward(req.into(), req.into_body())
                         }),
                     )
                     .with_upgrades()

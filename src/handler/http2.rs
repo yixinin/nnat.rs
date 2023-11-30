@@ -8,6 +8,7 @@ use tokio::net::{TcpListener, TcpStream};
 
 use crate::error::Result;
 use crate::upstream;
+use crate::upstream::http::HttpForward;
 pub struct Http2Handler {
     listener: TcpListener,
     upstream: upstream::http2::Http2Upstream,
@@ -54,7 +55,9 @@ impl Http2Handler {
         mut request: Request<RecvStream>,
         mut respond: SendResponse<Bytes>,
     ) -> Result<()> {
-        self.upstream.forward(req, headers, body);
+        let b = request.into_body();
+
+        self.upstream.forward(req, b, respond);
         println!("GOT request: {:?}", request);
 
         let body = request.body_mut();
