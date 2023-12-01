@@ -9,17 +9,26 @@ use tokio::net::TcpListener;
 use crate::tokioio::TokioIo;
 
 use crate::upstream::http::HttpForward;
+use crate::upstream::Forwarder;
 use crate::{error::Result, upstream};
 use hyper::{Method, Request, Response};
 
 use crate::{error, TcpStreamIo};
 
-pub struct Http1Handler {
+use super::http1_rw::{ReqBody, ResBody};
+
+pub struct Http1Handler<T>
+where
+    T: Forwarder,
+{
     listener: TcpListener,
-    upstream: upstream::http1::Http1Upstream<Incoming>,
+    upstream: T,
 }
 
-impl Http1Handler {
+impl<T> Http1Handler<T>
+where
+    T: Forwarder,
+{
     pub async fn new(addr: String) -> Result<Self> {
         let addr: SocketAddr = addr.parse().unwrap();
         let listener = TcpListener::bind(&addr).await?;
@@ -40,9 +49,17 @@ impl Http1Handler {
                         io,
                         service_fn(|req: Request<hyper::body::Incoming>| async move {
                             // self.Ok(Response::new(Full::<Bytes>::from("Hello World")))
+                            let r = Request::builder()
+                                .method(req.method())
+                                .uri(req.uri())
+                                .body(())?;
+                            r.headers_mut().clone_from(req.headers());
+                            r.extensions_mut().clone_from(req.extensions());
+                            let body = ReqBody(req.into_body());
+                            let res_body = ResBody::new();
+                            self.upstream.forward(r, body, res_body);
 
-                            self.upstream.forward(req.into(), req.into_body(), writer);
-                            Ok(Response::new(Full::<Bytes>::from("Hello World")))
+                            Ok(Response::new(res_body))
                         }),
                     )
                     .with_upgrades()
