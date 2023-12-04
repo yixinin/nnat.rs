@@ -2,14 +2,15 @@ use bytes::Bytes;
 use futures::Future;
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
 use hyper::body::{Body, Incoming};
+use hyper::rt::Read;
 use hyper::service::service_fn;
+use std::io::Write;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
-use crate::tokioio::TokioIo;
-
 use crate::upstream::http::HttpForward;
-use crate::upstream::Forwarder;
+use crate::upstream::http1::Http1Upstream;
+use crate::upstream::HttpForwarder;
 use crate::{error::Result, upstream};
 use hyper::{Method, Request, Response};
 
@@ -17,22 +18,19 @@ use crate::{error, TcpStreamIo};
 
 use super::http1_rw::{ReqBody, ResBody};
 
-pub struct Http1Handler<T>
-where
-    T: Forwarder,
-{
+pub struct Http1Handler {
+    raddr: String,
     listener: TcpListener,
-    upstream: T,
 }
 
-impl<T> Http1Handler<T>
-where
-    T: Forwarder,
-{
-    pub async fn new(addr: String) -> Result<Self> {
+impl Http1Handler {
+    pub async fn new(addr: String, raddr: String) -> Result<Self> {
         let addr: SocketAddr = addr.parse().unwrap();
         let listener = TcpListener::bind(&addr).await?;
-        let h = Http1Handler { listener: listener };
+        let h = Http1Handler {
+            raddr: raddr,
+            listener: listener,
+        };
         Ok(h)
     }
 
@@ -56,8 +54,13 @@ where
                             r.headers_mut().clone_from(req.headers());
                             r.extensions_mut().clone_from(req.extensions());
                             let body = ReqBody(req.into_body());
+                            let mut f = req.into_body();
+                            let f = f.poll_frame();
+
                             let res_body = ResBody::new();
-                            self.upstream.forward(r, body, res_body);
+                            let ups: Http1Upstream<Incoming> =
+                                Http1Upstream::new(self.raddr).await?;
+                            ups.forward(r, body, res_body);
 
                             Ok(Response::new(res_body))
                         }),
@@ -69,17 +72,5 @@ where
                 }
             });
         }
-    }
-    async fn handle_request(
-        &self,
-        req: Request<hyper::body::Incoming>,
-    ) -> std::result::Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
-        let uri = req.uri().to_owned();
-        let headers = req.headers().to_owned();
-        let body = req.into_body();
-
-        let req = Request::builder().uri(uri).body(())?;
-        self.upstream.forward(req, headers, body);
-        Ok(())
     }
 }

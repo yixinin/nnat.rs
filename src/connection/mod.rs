@@ -1,11 +1,11 @@
-pub mod quic;
-pub mod tcp;
+// pub mod quic;
+// pub mod tcp;
 
-use crate::upstream;
+// use crate::upstream;
 
-pub trait Connection<T, F>
-where
-    T: upstream::Forwarder,
-{
-    fn upstream(&self) -> T;
-}
+// pub trait Connection<T, F>
+// where
+//     T: upstream::Forwarder,
+// {
+//     fn upstream(&self) -> T;
+// }

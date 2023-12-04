@@ -1,9 +1,9 @@
 use std::net::SocketAddr;
 
-use super::http::HttpForward;
+use super::HttpForwarder;
 use bytes::Bytes;
-use http::{HeaderMap, Request};
-use http_body_util::Full;
+use http::{HeaderMap, Request, Response};
+use http_body_util::{BodyExt, Full};
 use hyper::body::{Body, Incoming};
 use hyper::client::conn::http1::{Connection, SendRequest};
 use tokio::net::TcpStream;
@@ -13,7 +13,7 @@ use crate::TcpStreamIo;
 
 pub struct Http1Upstream<B>
 where
-    B: Body + 'static,
+    B: 'static + Body + Unpin,
 {
     raddr: String,
     sender: SendRequest<B>,
@@ -22,7 +22,7 @@ where
 
 impl<B> Http1Upstream<B>
 where
-    B: Body + 'static,
+    B: Body + Unpin,
 {
     pub async fn new(raddr: String) -> Result<Self> {
         let addr: SocketAddr = raddr.parse().unwrap();
@@ -37,22 +37,24 @@ where
         Ok(s)
     }
 }
-impl<R, W, B> HttpForward<R, W> for Http1Upstream<B>
+impl<B> HttpForwarder<B> for Http1Upstream<B>
 where
-    R: std::io::Read,
-    W: std::io::Write,
-    B: Body + 'static,
+    B: Body + Unpin,
 {
-    fn forward(&self, req: Request<()>, mut body: R, mut writer: W) -> Result<()> {
+    fn forward(&mut self, req: Request<()>, mut body_in: B, body_out: B) -> Result<Response<()>> {
         let mut buf = Vec::new();
-        let n = body.read_to_end(&mut buf)?;
-        let mut req = Request::builder()
-            .uri(req.uri())
-            .body(Full::new(Bytes::from(buf.as_slice())))?
-            .into()?;
-        let mut resp = futures::executor::block_on(self.sender.send_request(req))?;
 
-        std::io::copy(&mut resp, &mut writer);
-        Ok(())
+        let f = body_in.frame();
+        if let Some(Ok(f)) = futures::executor::block_on(f) {
+            if f.is_data() {
+                if let Some(data) = f.data_ref() {
+                    let mut req = Request::builder().uri(req.uri()).body(data)?;
+                    let mut resp = futures::executor::block_on(self.sender.send_request(req))?;
+                }
+            }
+        }
+
+        let ret = Response::builder().body(())?;
+        Ok(ret)
     }
 }

@@ -28,7 +28,8 @@ where
     W: std::io::Write,
 {
     fn forward(&self, req: Request<()>, mut body: R, mut writer: W) -> Result<()> {
-        let (mut stream) = self.sender.send_request(req).await?;
+        let send = self.sender.send_request(req);
+        let mut stream = futures::executor::block_on(send)?;
         let (mut tx, mut rx) = stream.split();
 
         std::io::copy(&mut body, &mut tx);

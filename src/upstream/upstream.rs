@@ -1,31 +1,19 @@
-use http::Request;
-use tokio::net::TcpSocket;
-
 use crate::error::Result;
+use http::{Request, Response};
 
-use crate::tokioio;
-
-pub trait HttpForwarder<R, W>
+pub trait HttpForwarder<B>
 where
-    R: std::io::Read,
-    W: std::io::Write,
+    B: http_body::Body,
 {
-    fn forward(&mut self, req: Request<()>, reader: R, writer: W) -> Result<()>;
+    fn forward(&mut self, req: Request<()>, bodyIn: B, bodyOut: B) -> Result<Response<()>>;
 }
 
 pub trait StreamForwarder<R, W>
 where
-    R: std::io::Read,
-    W: std::io::Write,
+    R: tokio::io::AsyncRead,
+    W: tokio::io::AsyncWrite,
 {
-    fn forward(&mut self, reader: R, writer: W) -> Result<()>;
-}
-
-pub struct Upstream<F>
-where
-    F: HttpForwarder + Clone + Sync + Send + 'static,
-{
-    pub u: F,
+    fn forward(&mut self, reader: R, writer: W) -> Result<usize>;
 }
 
 // pub async fn forward_h1() -> Result<usize> {

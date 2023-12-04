@@ -1,5 +1,6 @@
 use bytes::Bytes;
 use hyper::body::{Body, Incoming};
+use tokio::net::TcpStream;
 
 pub struct ReqBody(pub Incoming);
 
@@ -21,7 +22,7 @@ impl ResBody {
     }
 }
 
-impl Body for ResBody {
+impl hyper::body::Body for ResBody {
     type Data = Bytes;
 
     type Error = std::io::Error;

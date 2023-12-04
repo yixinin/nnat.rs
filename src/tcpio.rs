@@ -45,6 +45,9 @@ impl hyper::rt::Write for TcpStreamIo {
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Result<(), std::io::Error>> {
+        if let Poll::Ready(Err(e)) = self.0.poll_write_ready(cx) {
+            return Poll::Ready(Err(e));
+        }
         if let Err(err) = futures::executor::block_on(self.get_mut().0.flush()) {
             return Poll::Ready(Err(err));
         }
@@ -55,6 +58,9 @@ impl hyper::rt::Write for TcpStreamIo {
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Result<(), std::io::Error>> {
+        if let Poll::Ready(Err(e)) = self.0.poll_write_ready(cx) {
+            return Poll::Ready(Err(e));
+        }
         if let Err(err) = futures::executor::block_on(self.get_mut().0.shutdown()) {
             return Poll::Ready(Err(err));
         }

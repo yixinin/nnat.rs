@@ -805,6 +805,7 @@ dependencies = [
  "h2",
  "h3",
  "http 1.0.0",
+ "http-body",
  "http-body-util",
  "hyper",
  "pin-project-lite",
@@ -817,6 +818,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
+ "tracing",
 ]
 
 [[package]]
