@@ -12,7 +12,7 @@ pub mod tls;
 pub mod tokioio;
 pub mod upstream;
 use clap::Parser;
-pub use tcpio::TcpStreamIo;
+pub use tcpio::TokioIo;
 
 // pub use backend::Backend;
 // pub use frontend::Frontend;

@@ -53,9 +53,6 @@ impl Http1Handler {
                                 .body(())?;
                             r.headers_mut().clone_from(req.headers());
                             r.extensions_mut().clone_from(req.extensions());
-                            let body = ReqBody(req.into_body());
-                            let mut f = req.into_body();
-                            let f = f.poll_frame();
 
                             let res_body = ResBody::new();
                             let ups: Http1Upstream<Incoming> =
