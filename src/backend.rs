@@ -9,6 +9,7 @@ use tokio::net::{TcpSocket, UdpSocket};
 
 use crate::endpoint::Kind;
 use crate::message::{self, ConnMessage, Message, StunMessage};
+use crate::tunnel;
 
 pub struct Backend {
     fqdn: String,
@@ -25,20 +26,13 @@ impl Backend {
         };
     }
 
-    pub async fn connect(
+    pub async fn handle(
         laddr: SocketAddr,
-        quic_stream: BidirectionalStream,
+        mut quic_conn: BidirectionalStream,
     ) -> Result<(), Box<dyn Error>> {
         let tcp_socket = TcpSocket::new_v4()?;
-        let tcp_socket = tcp_socket.connect(laddr).await?;
-        let (mut tcp_rx, mut tcp_tx) = tcp_socket.into_split();
-        let (mut quic_rx, mut quic_tx) = quic_stream.split();
-
-        let task = tokio::spawn(async move {
-            _ = tokio::io::copy(&mut tcp_rx, &mut quic_tx).await;
-        });
-        _ = tokio::io::copy(&mut quic_rx, &mut tcp_tx).await;
-        _ = task.await?;
+        let tcp_stream = tcp_socket.connect(laddr).await?;
+        // tunnel::backward_tunnel(tcp_stream, &mut quic_conn).await?;
         Ok(())
     }
 
@@ -48,7 +42,7 @@ impl Backend {
         let fqdn = self.fqdn.clone();
         while let Ok(socket) = Self::fetch(stun_addr.clone(), fqdn.clone()).await {
             tokio::spawn(async move {
-                _ = Self::handle(socket, laddr.clone()).await;
+                _ = Self::serve(socket, laddr.clone()).await;
             });
         }
 
@@ -91,7 +85,7 @@ impl Backend {
             }
         }
     }
-    pub async fn handle(socket: UdpSocket, laddr: SocketAddr) -> Result<(), Box<dyn Error>> {
+    pub async fn serve(socket: UdpSocket, laddr: SocketAddr) -> Result<(), Box<dyn Error>> {
         let tx = socket.into_std()?;
         let rx = tx.try_clone()?;
 
@@ -116,7 +110,7 @@ impl Backend {
 
                 while let Ok(Some(stream)) = connection.accept_bidirectional_stream().await {
                     _ = tokio::spawn(async move {
-                        _ = Self::connect(laddr.clone(), stream).await;
+                        tunnel::backward_tunnel(laddr.clone(), stream).await;
                     });
                 }
             });

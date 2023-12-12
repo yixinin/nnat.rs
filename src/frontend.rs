@@ -1,5 +1,5 @@
 use crate::message::Message;
-use crate::{endpoint, message};
+use crate::{endpoint, message, tunnel};
 use endpoint::Kind;
 use message::{ConnMessage, StunMessage};
 use s2n_quic::connection::Connection;
@@ -31,32 +31,13 @@ impl Frontend {
         }
     }
 
-    pub async fn listen(self, quic_conn: &mut Connection) -> Result<(), Box<dyn Error>> {
+    pub async fn listen(self, mut quic_conn: Connection) -> Result<(), Box<dyn Error>> {
         let lis = TcpListener::bind(self.laddr).await?;
         loop {
             let (tcp_stream, _raddr) = lis.accept().await?;
-            Self::tunnel_tx(tcp_stream, quic_conn).await?;
+            let quic_stream = quic_conn.open_bidirectional_stream().await?;
+            tunnel::forward_tunnel(tcp_stream, quic_stream).await?;
         }
-    }
-
-    pub async fn tunnel_tx(
-        tcp_stream: TcpStream,
-        quic_conn: &mut Connection,
-    ) -> Result<(), Box<dyn Error>> {
-        let (mut rx_tcp, mut tx_tcp) = tcp_stream.into_split();
-        let stream = quic_conn.open_bidirectional_stream().await?;
-
-        let (mut rx_quic, mut tx_quic) = stream.split();
-
-        // let (mut rx_tcp, mut tx_tcp) = tcp_stream.split();
-        let t1 = tokio::spawn(async move {
-            _ = tokio::io::copy(&mut rx_quic, &mut tx_tcp).await;
-        });
-
-        _ = tokio::io::copy(&mut rx_tcp, &mut tx_quic).await;
-
-        _ = t1.await;
-        Ok(())
     }
 
     pub async fn run(self) -> Result<(), Box<dyn Error>> {
@@ -137,7 +118,7 @@ impl Frontend {
         let mut connection = client.connect(connect).await?;
         connection.keep_alive(true)?;
 
-        self.listen(&mut connection).await?;
+        self.listen(connection).await?;
         Ok(())
     }
 }
