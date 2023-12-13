@@ -1,11 +1,10 @@
 use s2n_quic::provider::io::tokio::Builder as IOBuilder;
-use s2n_quic::stream::BidirectionalStream;
 use s2n_quic::Server;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::time::Duration;
-use tokio::net::{TcpSocket, UdpSocket};
+use tokio::net::UdpSocket;
 
 use crate::endpoint::Kind;
 use crate::message::{self, ConnMessage, Message, StunMessage};
@@ -26,23 +25,13 @@ impl Backend {
         };
     }
 
-    pub async fn handle(
-        laddr: SocketAddr,
-        mut quic_conn: BidirectionalStream,
-    ) -> Result<(), Box<dyn Error>> {
-        let tcp_socket = TcpSocket::new_v4()?;
-        let tcp_stream = tcp_socket.connect(laddr).await?;
-        // tunnel::backward_tunnel(tcp_stream, &mut quic_conn).await?;
-        Ok(())
-    }
-
     pub async fn run(self) -> Result<(), Box<dyn Error>> {
         let laddr = self.laddr.clone();
         let stun_addr = self.stun_addr.clone();
         let fqdn = self.fqdn.clone();
         while let Ok(socket) = Self::fetch(stun_addr.clone(), fqdn.clone()).await {
             tokio::spawn(async move {
-                _ = Self::serve(socket, laddr.clone()).await;
+                _ = Self::handle(socket, laddr.clone()).await;
             });
         }
 
@@ -85,7 +74,7 @@ impl Backend {
             }
         }
     }
-    pub async fn serve(socket: UdpSocket, laddr: SocketAddr) -> Result<(), Box<dyn Error>> {
+    pub async fn handle(socket: UdpSocket, laddr: SocketAddr) -> Result<(), Box<dyn Error>> {
         let tx = socket.into_std()?;
         let rx = tx.try_clone()?;
 
@@ -110,7 +99,7 @@ impl Backend {
 
                 while let Ok(Some(stream)) = connection.accept_bidirectional_stream().await {
                     _ = tokio::spawn(async move {
-                        tunnel::backward_tunnel(laddr.clone(), stream).await;
+                        _ = tunnel::backward_tunnel(laddr.clone(), stream).await;
                     });
                 }
             });

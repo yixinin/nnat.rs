@@ -8,7 +8,7 @@ use s2n_quic::{client::Connect, Client};
 use std::error::Error;
 
 use std::time::Duration;
-use tokio::net::{TcpListener, TcpStream, UdpSocket};
+use tokio::net::{TcpListener, UdpSocket};
 use tokio::task::JoinHandle;
 
 #[cfg(target_family = "windows")]
