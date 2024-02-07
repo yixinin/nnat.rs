@@ -1,7 +1,9 @@
 pub mod backend;
 pub mod endpoint;
 pub mod frontend;
+pub mod layer;
 pub mod message;
+pub mod pool;
 pub mod server;
 pub mod tls;
 pub mod tunnel;
@@ -9,6 +11,7 @@ use clap::Parser;
 
 pub use backend::Backend;
 pub use frontend::Frontend;
+use layer::iobound::{tcpin, tcpout};
 pub use server::StunServer;
 
 use std::error::Error;
@@ -52,31 +55,36 @@ impl Cli {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let args = Cli::parse();
-    let stun_addr = "114.115.218.1:3440";
-    let fqdn = "localhost";
-    match args.kind() {
-        CliKind::StunServer => {
-            let mut s = StunServer::new("0.0.0.0:3440");
-            s.run()?;
-        }
-        CliKind::Backend => {
-            let laddr = "0.0.0.0:3441".parse().unwrap();
-            let be = Backend::new(fqdn, laddr, stun_addr);
-            be.run().await?;
-        }
-        CliKind::Frontend => loop {
-            let fb = Frontend::new(fqdn, "0.0.0.0:3442", stun_addr);
-            match fb.run().await {
-                Ok(_) => return Ok(()),
-                Err(err) => {
-                    println!("proxy error: {}", err)
-                }
-            }
-        },
-        CliKind::Unknown => {
-            println!("nothing run")
-        }
-    }
+    // let args = Cli::parse();
+    // let stun_addr = "114.115.218.1:3440";
+    // let fqdn = "localhost";
+    // match args.kind() {
+    //     CliKind::StunServer => {
+    //         let mut s = StunServer::new("0.0.0.0:3440");
+    //         s.run()?;
+    //     }
+    //     CliKind::Backend => {
+    //         let laddr = "0.0.0.0:3441".parse().unwrap();
+    //         let be = Backend::new(fqdn, laddr, stun_addr);
+    //         be.run().await?;
+    //     }
+    //     CliKind::Frontend => loop {
+    //         let fb = Frontend::new(fqdn, "0.0.0.0:3442", stun_addr);
+    //         match fb.run().await {
+    //             Ok(_) => return Ok(()),
+    //             Err(err) => {
+    //                 println!("proxy error: {}", err)
+    //             }
+    //         }
+    //     },
+    //     CliKind::Unknown => {
+    //         println!("nothing run")
+    //     }
+    // }
+    let raddr = "110.242.68.66:443".parse()?;
+    let out = tcpout::TcpOutStream::new(raddr);
+    let laddr = "0.0.0.0:8110".parse()?;
+    let tcp = tcpin::TcpProxy::new(out, laddr)?;
+    tcp.run().await?;
     Ok(())
 }

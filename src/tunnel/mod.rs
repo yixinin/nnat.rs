@@ -1,6 +1,6 @@
 use std::{error::Error, net::SocketAddr};
 
-use s2n_quic::{stream::BidirectionalStream, Connection};
+use s2n_quic::stream::BidirectionalStream;
 use tokio::net::{TcpSocket, TcpStream};
 
 pub async fn forward_tunnel(
