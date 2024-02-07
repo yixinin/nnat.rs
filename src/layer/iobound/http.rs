@@ -5,7 +5,23 @@ use std::net::SocketAddr;
 
 use super::io::BiStream;
 use super::spawner::Spawner;
-use super::tunnel;
+use axum::{
+    body::Body,
+    extract::Request,
+    http::{Method, StatusCode},
+    response::{IntoResponse, Response},
+    routing::get,
+    Router,
+};
+
+use hyper::body::Incoming;
+use hyper::server::conn::http1;
+use hyper::upgrade::Upgraded;
+use tokio::net::{TcpListener, TcpStream};
+use tower::Service;
+use tower::ServiceExt;
+
+use hyper_util::rt::TokioIo;
 
 pub struct TcpProxy<T, S>
 where
@@ -56,23 +72,21 @@ where
 }
 
 async fn proxy(req: Request) -> Result<Response, hyper::Error> {
-    tracing::trace!(?req);
-
     if let Some(host_addr) = req.uri().authority().map(|auth| auth.to_string()) {
         tokio::task::spawn(async move {
             match hyper::upgrade::on(req).await {
                 Ok(upgraded) => {
                     if let Err(e) = tunnel(upgraded, host_addr).await {
-                        tracing::warn!("server io error: {}", e);
+                        println!("server io error: {}", e);
                     };
                 }
-                Err(e) => tracing::warn!("upgrade error: {}", e),
+                Err(e) => println!("upgrade error: {}", e),
             }
         });
 
         Ok(Response::new(Body::empty()))
     } else {
-        tracing::warn!("CONNECT host is not socket addr: {:?}", req.uri());
+        println!("CONNECT host is not socket addr: {:?}", req.uri());
         Ok((
             StatusCode::BAD_REQUEST,
             "CONNECT must be to a socket address",
@@ -88,10 +102,9 @@ async fn tunnel(upgraded: Upgraded, addr: String) -> std::io::Result<()> {
     let (from_client, from_server) =
         tokio::io::copy_bidirectional(&mut upgraded, &mut server).await?;
 
-    tracing::debug!(
+    println!(
         "client wrote {} bytes and received {} bytes",
-        from_client,
-        from_server
+        from_client, from_server
     );
 
     Ok(())
