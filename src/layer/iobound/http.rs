@@ -1,3 +1,4 @@
+use clap::error;
 use tokio::net::TcpSocket;
 use tower::BoxError;
 use tower::{util::ServiceFn, Service};
@@ -141,15 +142,24 @@ where
         Ok(())
     }
     async fn request(self, req: Request) -> Result<Response, hyper::Error> {
-        let client = hyper_util::client::legacy::Client::<(), ()>::builder(TokioExecutor::new())
-            .build(HttpConnector::new());
-        let resp = client
-            .request(req)
-            .await
-            .map_err(|_| StatusCode::BAD_REQUEST)
-            .unwrap()
-            .into_response();
-        Ok(resp)
+        let client = hyper::client::conn::http1::Builder::new();
+        if let Some(host_addr) = req.uri().authority().map(|auth| auth.to_string()) {
+            match host_addr.parse() {
+                Ok(raddr) => {
+                    println!("connect to {}", raddr);
+                    let stream = TcpSocket::new_v4().unwrap().connect(raddr).await.unwrap();
+                    let (mut send, _) = client.handshake(TokioIo::new(stream)).await?;
+
+                    let resp = send.send_request(req).await?;
+                    return Ok(resp.into_response());
+                }
+                Err(e) => {
+                    panic!("{} err: {}", host_addr, e)
+                }
+            }
+        } else {
+            panic!("addr parse error");
+        }
     }
 }
 
