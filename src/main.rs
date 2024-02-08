@@ -11,7 +11,7 @@ use clap::Parser;
 
 pub use backend::Backend;
 pub use frontend::Frontend;
-use layer::iobound::{tcpin, tcpout};
+use layer::iobound::{http, tcpin, tcpout};
 pub use server::StunServer;
 
 use std::error::Error;
@@ -81,10 +81,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     //         println!("nothing run")
     //     }
     // }
-    let raddr = "110.242.68.66:443".parse()?;
-    let out = tcpout::TcpOutStream::new(raddr);
+    let raddr = "127.0.0.1:8111".parse()?;
+    let out = tcpout::TcpOutStream::new(Some(raddr));
     let laddr = "0.0.0.0:8110".parse()?;
-    let tcp = tcpin::TcpProxy::new(out, laddr)?;
-    tcp.run().await?;
+    let ht = http::TcpProxy::new(out, laddr)?;
+    // let tcp = tcpin::TcpProxy::new(out, laddr)?;
+    ht.run().await?;
     Ok(())
 }
