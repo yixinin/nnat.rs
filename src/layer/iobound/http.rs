@@ -1,10 +1,8 @@
-use clap::error;
 use tokio::net::TcpSocket;
-use tower::BoxError;
-use tower::{util::ServiceFn, Service};
+use tower::Service;
 
+use std::io;
 use std::net::SocketAddr;
-use std::{future::Future, io};
 
 use super::spawner::Spawner;
 use axum::{
@@ -13,7 +11,6 @@ use axum::{
     http::{Method, StatusCode},
     response::{IntoResponse, Response},
 };
-use hyper_util::{client::legacy::connect::HttpConnector, rt::TokioExecutor};
 
 use hyper::upgrade::Upgraded;
 use hyper::{body::Incoming, server::conn::http1};

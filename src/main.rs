@@ -11,7 +11,7 @@ use clap::Parser;
 
 pub use backend::Backend;
 pub use frontend::Frontend;
-use layer::iobound::{http, tcpin, tcpout};
+use layer::iobound::{http, tcpout};
 pub use server::StunServer;
 
 use std::error::Error;

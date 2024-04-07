@@ -26,7 +26,7 @@ dependencies = [
  "cfg-if",
  "once_cell",
  "version_check",
- "zerocopy 0.7.26",
+ "zerocopy",
 ]
 
 [[package]]
@@ -111,20 +111,22 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
 name = "aws-lc-rs"
-version = "1.5.1"
+version = "1.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96971b015c9d66a3558687fe18505d0f5c17faf67d4aa08c5ab5542d6ebb09c6"
+checksum = "9f379c4e505c0692333bd90a334baa234990faa06bdabefd3261f765946aa920"
 dependencies = [
  "aws-lc-sys",
  "mirai-annotations",
+ "paste",
+ "untrusted 0.7.1",
  "zeroize",
 ]
 
 [[package]]
 name = "aws-lc-sys"
-version = "0.12.0"
+version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa851b9955e1c4ab862c022a23b87b90237fd69ee715b91f9c13a20306d781e4"
+checksum = "68aa3d613f42dbf301dbbcaf3dc260805fd33ffd95f6d290ad7231a9e5d877a7"
 dependencies = [
  "bindgen",
  "cmake",
@@ -212,17 +214,17 @@ checksum = "35636a1494ede3b646cc98f74f8e62c773a38a659ebc777a2cf26b9b74171df9"
 
 [[package]]
 name = "bindgen"
-version = "0.68.1"
+version = "0.69.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "726e4313eb6ec35d2730258ad4e15b547ee75d6afaa1361a922e78e59b7d8078"
+checksum = "a00dc851838a2120612785d195287475a3ac45514741da670b735818822129a0"
 dependencies = [
  "bitflags 2.4.1",
  "cexpr",
  "clang-sys",
+ "itertools",
  "lazy_static",
  "lazycell",
  "log",
- "peeking_take_while",
  "prettyplease",
  "proc-macro2",
  "quote",
@@ -713,6 +715,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -862,7 +873,7 @@ dependencies = [
  "pin-project",
  "rustls",
  "s2n-quic",
- "s2n-quic-rustls 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "s2n-quic-rustls 0.35.1",
  "tokio",
  "tower",
 ]
@@ -973,12 +984,6 @@ name = "paste"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
-
-[[package]]
-name = "peeking_take_while"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
 
 [[package]]
 name = "percent-encoding"
@@ -1270,18 +1275,17 @@ version = "0.31.0"
 dependencies = [
  "byteorder",
  "bytes",
- "zerocopy 0.7.26",
+ "zerocopy",
 ]
 
 [[package]]
 name = "s2n-codec"
-version = "0.31.0"
+version = "0.35.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcae1562cb450c704db53d0b6a5a4ca5c1c200c893645366a8bfed540f5b9518"
+checksum = "8ec4e4fe5f49e893ea0f9b9126ca791b07e1568514cfd40dd044b9f796f317cc"
 dependencies = [
  "byteorder",
- "zerocopy 0.6.5",
- "zerocopy-derive 0.6.5",
+ "zerocopy",
 ]
 
 [[package]]
@@ -1302,7 +1306,7 @@ dependencies = [
  "s2n-quic-tls-default",
  "s2n-quic-transport",
  "tokio",
- "zerocopy 0.7.26",
+ "zerocopy",
  "zeroize",
 ]
 
@@ -1322,14 +1326,14 @@ dependencies = [
  "pin-project-lite",
  "s2n-codec 0.31.0",
  "subtle",
- "zerocopy 0.7.26",
+ "zerocopy",
 ]
 
 [[package]]
 name = "s2n-quic-core"
-version = "0.31.0"
+version = "0.35.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90427b6248945f70dda6bb3aed5fc9b691aae071ef4264404150b1acf632b12d"
+checksum = "f14d9c616008d5641274b225a9bfa2f6fb1f6aee47b330697cad7376b0efadfa"
 dependencies = [
  "atomic-waker",
  "byteorder",
@@ -1340,10 +1344,9 @@ dependencies = [
  "num-rational",
  "num-traits",
  "pin-project-lite",
- "s2n-codec 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "s2n-codec 0.35.1",
  "subtle",
- "zerocopy 0.6.5",
- "zerocopy-derive 0.6.5",
+ "zerocopy",
 ]
 
 [[package]]
@@ -1361,16 +1364,16 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-crypto"
-version = "0.31.0"
+version = "0.35.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4340aae0f9b2e64e5099bcfef49904ad104a92f9b7946ac8eefa39228e9ef2df"
+checksum = "16759282176ba0c093309c985e9e8ab6c87a4d1d44967a20ba1b4f350cfa0f9d"
 dependencies = [
  "aws-lc-rs",
  "cfg-if",
  "lazy_static",
  "ring 0.16.20",
- "s2n-codec 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "s2n-quic-core 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "s2n-codec 0.35.1",
+ "s2n-quic-core 0.35.1",
  "zeroize",
 ]
 
@@ -1401,16 +1404,16 @@ dependencies = [
 
 [[package]]
 name = "s2n-quic-rustls"
-version = "0.31.0"
+version = "0.35.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e333f7eabc456841e512a5cfbeed330376c6758c20e9fda76cafcc68e7a6f925"
+checksum = "6ad60063becb0be2cd796eda40e196a7195cbfaee7bd5e7e33cf904305b1bc25"
 dependencies = [
  "bytes",
  "rustls",
  "rustls-pemfile",
- "s2n-codec 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "s2n-quic-core 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "s2n-quic-crypto 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "s2n-codec 0.35.1",
+ "s2n-quic-core 0.35.1",
+ "s2n-quic-crypto 0.35.1",
 ]
 
 [[package]]
@@ -1951,33 +1954,12 @@ checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
 
 [[package]]
 name = "zerocopy"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96f8f25c15a0edc9b07eb66e7e6e97d124c0505435c382fde1ab7ceb188aa956"
-dependencies = [
- "byteorder",
- "zerocopy-derive 0.6.5",
-]
-
-[[package]]
-name = "zerocopy"
 version = "0.7.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e97e415490559a91254a2979b4829267a57d2fcd741a98eee8b722fb57289aa0"
 dependencies = [
  "byteorder",
- "zerocopy-derive 0.7.26",
-]
-
-[[package]]
-name = "zerocopy-derive"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "855e0f6af9cd72b87d8a6c586f3cb583f5cdcc62c2c80869d8cd7e96fdf7ee20"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
+ "zerocopy-derive",
 ]
 
 [[package]]

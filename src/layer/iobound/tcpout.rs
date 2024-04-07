@@ -1,4 +1,4 @@
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 
 use super::io::BiStream;
 use tokio::net::{TcpSocket, TcpStream};

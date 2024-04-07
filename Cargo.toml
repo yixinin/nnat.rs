@@ -7,7 +7,7 @@ edition = "2021"
 [dependencies]
 s2n-quic = { path = "../s2n-quic/quic/s2n-quic" }
 clap = { version = "^4", features = ["derive"] }
-s2n-quic-rustls = { version = "^0.31.0" }
+s2n-quic-rustls = { version = "0.35.1" }
 rustls = { version = "^0.21", features = ["quic", "dangerous_configuration"] }
 tokio = { version = "^1", features = ["full"] }
 hyper = { version = "1", features = ["full"] }
